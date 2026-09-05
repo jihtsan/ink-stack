@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import type { DashboardDraft } from "@ink-stack/shared";
-import { collectWeather, type QWeatherConnection, type QWeatherTransport, type WeatherCacheEntry } from "@ink-stack/widgets/weather/server";
+import { collectWeather, weatherCacheKey, type QWeatherConnection, type QWeatherTransport, type WeatherCacheEntry } from "@ink-stack/widgets/weather/server";
 import type { WeatherConfig, WeatherEnvelope } from "@ink-stack/widgets/weather/types";
 import { validateWidgetInstanceConfig } from "@ink-stack/widgets";
 import type { InkDatabase } from "../storage/database.js";
@@ -174,7 +174,7 @@ export class Connections {
   async readWeather(config: WeatherConfig, now: string, force = false): Promise<{ envelope: WeatherEnvelope; cache?: WeatherCacheEntry }> {
     const connection = this.weather(config.connectionId, config.connectionRevision);
     if (!connection) return { envelope: { status: "unavailable", reason: config.connectionId ? "connection" : "missing" } };
-    const key = JSON.stringify([connection.id, connection.revision, config.locationMode, config.city, config.latitude, config.longitude, config.units, config.showForecast, connection.authRevision, connection.identity]);
+    const key = weatherCacheKey(config, connection);
     if (!force) {
       const active = this.weatherPending.get(key);
       if (active) return active;

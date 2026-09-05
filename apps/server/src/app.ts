@@ -123,7 +123,7 @@ export async function createApp(options:AppOptions){
       if(!r.body.apiHost||!r.body.authMode||!r.body.apiKey) throw new HttpError(400,'weather_connection_required');
       envelope=await connections.testWeather(config,{name:'temporary',apiHost:r.body.apiHost,authMode:r.body.authMode,apiKey:r.body.apiKey});
     }
-    return {status:envelope.status,reason:envelope.reason,observedAt:envelope.observedAt,message:weatherEnvelopeMessage(envelope),summary:envelope.data?{location:envelope.data.location,temperature:envelope.data.temperature,condition:envelope.data.condition,feelsLike:envelope.data.feelsLike,humidity:envelope.data.humidity,windSpeed:envelope.data.windSpeed,forecastCount:envelope.data.forecast.length}:undefined};
+    return {status:envelope.status,reason:envelope.reason,observedAt:envelope.observedAt,message:weatherEnvelopeMessage(envelope),summary:envelope.data?{location:envelope.data.location,temperature:envelope.data.temperature,condition:envelope.data.condition,feelsLike:envelope.data.feelsLike,humidity:envelope.data.humidity,windSpeed:envelope.data.windSpeed,forecastCount:envelope.data.forecast.length,hourlyCount:envelope.data.hourlyForecast?.length??0,airQuality:envelope.data.airQuality?{aqiDisplay:envelope.data.airQuality.aqiDisplay,category:envelope.data.airQuality.category,primaryPollutant:envelope.data.airQuality.primaryPollutant}:undefined}:undefined};
   });
   const imageSourceBody=objectSchema({type:{type:'string',enum:['album','directory']},name:{type:'string',minLength:1,maxLength:80},root:{type:'string',maxLength:4096}},['type','name']);
   app.get('/api/image-sources',async()=>({sources:imageManager.list()}));

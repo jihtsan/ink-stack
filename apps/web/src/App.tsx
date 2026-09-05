@@ -1959,13 +1959,16 @@ function ConfigInspector({
           <button type="button" className="primary-button" onClick={() => onTestWeatherConnection(weather)} disabled={weatherTesting}>{weatherTesting ? "测试中" : "测试当前输入"}</button>
         </div>
         {weatherTest ? <div className={`connection-status ${weatherTest.status}`}><strong>{weatherTest.message}</strong>{weatherTest.observedAt ? <span>{formatDateTime(weatherTest.observedAt)}</span> : null}{weatherTest.summary ? <small>{weatherTest.summary.location} · {weatherTest.summary.temperature}{weather.units === "m" ? "°C" : "°F"} · {weatherTest.summary.condition}{weatherTest.summary.humidity === undefined ? "" : ` · 湿度 ${Math.round(weatherTest.summary.humidity)}%`}</small> : null}</div> : <p className="muted-copy">测试会发起一次受限的 QWeather HTTPS 请求；未保存的输入只在本次请求内使用。</p>}
+        {weatherTest?.summary?.airQuality ? <p className="muted-copy">空气质量测试：AQI {weatherTest.summary.airQuality.aqiDisplay} · {weatherTest.summary.airQuality.category}</p> : null}
         <SectionTitle title="显示项目" />
         <CheckboxInput label="温度" checked={weather.showTemperature} onChange={(showTemperature) => onChange(toJsonObject({ ...weather, showTemperature }))} />
         <CheckboxInput label="天气状况" checked={weather.showCondition} onChange={(showCondition) => onChange(toJsonObject({ ...weather, showCondition }))} />
         <CheckboxInput label="体感温度" checked={weather.showFeelsLike} onChange={(showFeelsLike) => onChange(toJsonObject({ ...weather, showFeelsLike }))} />
         <CheckboxInput label="湿度" checked={weather.showHumidity} onChange={(showHumidity) => onChange(toJsonObject({ ...weather, showHumidity }))} />
         <CheckboxInput label="风速" checked={weather.showWind} onChange={(showWind) => onChange(toJsonObject({ ...weather, showWind }))} />
-        <CheckboxInput label="三日预报（4×2）" checked={weather.showForecast} onChange={(showForecast) => onChange(toJsonObject({ ...weather, showForecast }))} />
+        <SelectInput label="扩展信息模式（4×2）" value={weather.forecastMode ?? "daily"} options={[["daily", "每日天气预报"], ["hourly", "逐小时天气预报"], ["air-quality", "空气质量"]]} onChange={(forecastMode) => onChange(toJsonObject({ ...weather, forecastMode: forecastMode as NonNullable<WeatherConfig["forecastMode"]> }))} />
+        <CheckboxInput label="显示扩展信息（4×2）" checked={weather.showForecast} onChange={(showForecast) => onChange(toJsonObject({ ...weather, showForecast }))} />
+        <p className="muted-copy">2×2 只显示当前天气；切换模式后，4×2 扩展区会在下一次预览/采集时更新。</p>
         <CheckboxInput label="显示更新时间" checked={weather.showUpdatedAt} onChange={(showUpdatedAt) => onChange(toJsonObject({ ...weather, showUpdatedAt }))} />
         <label>采集间隔（秒）<input type="number" min={300} max={86400} value={weather.refreshSeconds} onChange={(event) => onChange(toJsonObject({ ...weather, refreshSeconds: ensureNumber(event.currentTarget.value, weather.refreshSeconds) }))} /></label>
       </section>

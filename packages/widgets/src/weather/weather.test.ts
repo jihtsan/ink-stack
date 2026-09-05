@@ -5,13 +5,15 @@ import { validateWidgetInstanceConfig, widgetCatalog } from "../catalog.js";
 import { renderWidgetToSvg } from "../registry.server.js";
 import { textWidth } from "../render-utils.js";
 import { collectWeather, validQWeatherConnection, weatherCacheKey, type QWeatherConnection, type QWeatherTransport } from "./server.js";
-import { normalizeWeatherLocation, normalizeWeatherSnapshot, weatherEnvelope } from "./normalize.js";
+import { normalizeWeatherAirQuality, normalizeWeatherHourlyForecast, normalizeWeatherLocation, normalizeWeatherSnapshot, weatherEnvelope } from "./normalize.js";
 import { renderWeatherWidget } from "./render.js";
 import type { WeatherConfig, WeatherError } from "./types.js";
 import defaults from "./defaults.json" with { type: "json" };
 import connectionSchema from "./connection.schema.json" with { type: "json" };
 import current from "./fixtures/current.json" with { type: "json" };
 import daily from "./fixtures/daily.json" with { type: "json" };
+import hourly from "./fixtures/hourly.json" with { type: "json" };
+import airCurrent from "./fixtures/air-current.json" with { type: "json" };
 import location from "./fixtures/location.json" with { type: "json" };
 import states from "./fixtures/states.json" with { type: "json" };
 
@@ -21,7 +23,7 @@ const now = "2026-09-05T00:05:00Z";
 const snapshot = normalizeWeatherSnapshot(current, daily, { location: "北京", units: "m" })!;
 const instance = { id: "weather-1", type: "weather", configVersion: 1, column: 0, row: 0, columnSpan: 2, rowSpan: 2, config };
 const context = { now, timeZone: "Asia/Shanghai", screen: { width: 600, height: 800 }, rect: { x: 0, y: 0, width: 260, height: 240 } };
-const makeTransport = () => vi.fn<QWeatherTransport>(async ({ url }) => url.includes("/geo/") ? location : url.includes("/3d") ? daily : current);
+const makeTransport = () => vi.fn<QWeatherTransport>(async ({ url }) => url.includes("/geo/") ? location : url.includes("/hourly/") ? hourly : url.includes("/airquality/") ? airCurrent : url.includes("/3d") ? daily : current);
 afterEach(() => vi.useRealTimers());
 
 describe("weather contracts and normalization", () => {
@@ -64,6 +66,14 @@ describe("weather contracts and normalization", () => {
     expect(JSON.stringify(result)).not.toContain("SENTINEL");
     expect(result?.forecast).toEqual([]);
     expect(normalizeWeatherSnapshot({ code: "401", message: "SENTINEL" }, daily, { location: "北京", units: "m" })).toBeUndefined();
+  });
+  it("normalizes hourly v1 measurements and prefers the China air-quality index", () => {
+    const hourlyResult = normalizeWeatherHourlyForecast(hourly, { units: "i", apiVersion: "v1" });
+    expect(hourlyResult).toHaveLength(3);
+    expect(hourlyResult[0]).toMatchObject({ time: "2026-09-05T00:00:00.000Z", temperature: 78.8, humidity: 65, windSpeed: expect.closeTo(7.158, 2) });
+    const airQuality = normalizeWeatherAirQuality(airCurrent);
+    expect(airQuality).toMatchObject({ aqi: 42, aqiDisplay: "42", level: "1", category: "优", primaryPollutant: "PM2.5" });
+    expect(airQuality?.pollutants[0]).toMatchObject({ code: "pm2p5", name: "PM2.5", value: 12, unit: "μg/m³" });
   });
   it("rejects malformed timestamps and ambiguous cities", () => {
     for (const obsTime of ["invalid", "2026-09-05", "2026-09-05T00:00:00"]) {
@@ -141,6 +151,47 @@ describe("server collection", () => {
     expect(urls[1]!.pathname).toBe("/weather/v1/daily/39.92/116.42");
     expect(urls.every((url) => url.searchParams.get("localTime") === "true")).toBe(true);
   });
+  it.each(["daily", "hourly", "air-quality"] as const)("collects the selected v1 %s secondary data", async (forecastMode) => {
+    const v1Current = {
+      updateTime: "2026-09-05T08:00+08:00",
+      condition: { text: "少云" },
+      temperature: { value: 20 },
+      humidity: 0.69
+    };
+    const v1Daily = {
+      days: [{
+        forecastStartTime: "2026-09-05T00:00+08:00",
+        temperatureMin: { value: 18 },
+        temperatureMax: { value: 25 },
+        daytime: { condition: { text: "晴" } }
+      }]
+    };
+    const transport = vi.fn<QWeatherTransport>(async ({ url }) => {
+      if (url.includes("/hourly/")) return hourly;
+      if (url.includes("/airquality/")) return airCurrent;
+      if (url.includes("/daily/")) return v1Daily;
+      return v1Current;
+    });
+    const result = await collectWeather({
+      config: { ...config, locationMode: "coordinates", city: "", forecastMode, showForecast: true },
+      connection: { ...connection, apiVersion: "v1" }, now, transport
+    });
+    expect(result.envelope.status).toBe("fresh");
+    const secondary = new URL(transport.mock.calls[1]![0].url);
+    expect(secondary.searchParams.get("lang")).toBe("zh");
+    if (forecastMode === "daily") {
+      expect(secondary.pathname).toBe("/weather/v1/daily/39.90/116.41");
+      expect(secondary.searchParams.get("days")).toBe("3");
+      expect(result.envelope.data?.forecast).toHaveLength(1);
+    } else if (forecastMode === "hourly") {
+      expect(secondary.pathname).toBe("/weather/v1/hourly/39.90/116.41");
+      expect(secondary.searchParams.get("hours")).toBe("12");
+      expect(result.envelope.data?.hourlyForecast).toHaveLength(3);
+    } else {
+      expect(secondary.pathname).toBe("/airquality/v1/current/39.90/116.41");
+      expect(result.envelope.data?.airQuality?.aqiDisplay).toBe("42");
+    }
+  });
   it("reuses fresh cache within refresh interval; rotation and location/unit changes isolate it", async () => {
     const transport = makeTransport();
     const first = await collectWeather({ config, connection, now, transport });
@@ -156,6 +207,7 @@ describe("server collection", () => {
       expect((await collectWeather({ config: changed, connection, now, transport: failed, cache: first.cache })).envelope.data).toBeUndefined();
     }
     expect(weatherCacheKey(config, connection)).not.toBe(weatherCacheKey(config, { ...connection, revision: 2 }));
+    expect(weatherCacheKey({ ...config, forecastMode: "daily" }, connection)).not.toBe(weatherCacheKey({ ...config, forecastMode: "hourly" }, connection));
   });
   it("fails closed without a valid connection or matching revision before invoking transport", async () => {
     const transport = makeTransport();
@@ -192,6 +244,19 @@ describe("server collection", () => {
     expect(result.envelope.data?.forecast).toEqual([]);
     expect(result.envelope.data?.forecastError).toBe("response");
     expect(renderWeatherWidget({ instance: { ...instance, columnSpan: 4 }, context, data: result.envelope })).toContain("预报暂不可用");
+  });
+  it("keeps current data when hourly or air-quality data is unavailable", async () => {
+    const v1Current = { updateTime: "2026-09-05T08:00+08:00", condition: { text: "晴" }, temperature: { value: 26 } };
+    for (const forecastMode of ["hourly", "air-quality"] as const) {
+      const result = await collectWeather({
+        config: { ...config, locationMode: "coordinates", city: "", forecastMode, showForecast: true },
+        connection: { ...connection, apiVersion: "v1" }, now,
+        transport: async ({ url }) => url.includes("/hourly/") || url.includes("/airquality/") ? { code: "500" } : v1Current
+      });
+      expect(result.envelope.status).toBe("fresh");
+      expect(result.envelope.data?.temperature).toBe(26);
+      expect(forecastMode === "hourly" ? result.envelope.data?.hourlyError : result.envelope.data?.airQualityError).toBe("response");
+    }
   });
   it("does not cache future data or replace newer observations with older upstream data", async () => {
     const first = await collectWeather({ config, connection, now, transport: makeTransport() });
@@ -241,6 +306,20 @@ describe("pure weather rendering", () => {
     expect(expired).toContain("超过保留期限");
     const wrongUnit = renderWeatherWidget({ ...input, instance: { ...instance, config: { ...config, units: "i" } } });
     expect(wrongUnit).not.toContain("26°F");
+  });
+  it("renders the selected wide-card secondary mode", () => {
+    const hourlySvg = renderWeatherWidget({
+      instance: { ...instance, columnSpan: 4, config: { ...config, forecastMode: "hourly" } },
+      context, data: weatherEnvelope({ ...snapshot, hourlyForecast: normalizeWeatherHourlyForecast(hourly, { units: "m", apiVersion: "v1" }) }, config, now)
+    });
+    expect(hourlySvg).toContain("逐小时预报");
+    expect(hourlySvg).toContain("08:00");
+    const airSvg = renderWeatherWidget({
+      instance: { ...instance, columnSpan: 4, config: { ...config, forecastMode: "air-quality" } },
+      context, data: weatherEnvelope({ ...snapshot, airQuality: normalizeWeatherAirQuality(airCurrent) }, config, now)
+    });
+    expect(airSvg).toContain("空气质量");
+    expect(airSvg).toContain("AQI 42");
   });
   it("keeps network code out of the public renderer and catalog import graph", () => {
     for (const file of ["../render.ts", "../catalog.ts", "./render.ts", "./normalize.ts", "./types.ts"]) {

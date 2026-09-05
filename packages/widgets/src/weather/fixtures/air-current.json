@@ -1,0 +1,18 @@
+{
+  "indexes": [
+    {
+      "code": "cn-mee",
+      "name": "中国空气质量指数",
+      "aqi": 42,
+      "aqiDisplay": "42",
+      "level": "1",
+      "category": "优",
+      "primaryPollutant": { "code": "pm2p5", "name": "PM2.5" }
+    }
+  ],
+  "pollutants": [
+    { "code": "pm2p5", "name": "PM2.5", "concentration": { "value": 12, "unit": "μg/m³" } },
+    { "code": "pm10", "name": "PM10", "concentration": { "value": 24, "unit": "μg/m³" } },
+    { "code": "o3", "name": "臭氧", "concentration": { "value": 61, "unit": "μg/m³" } }
+  ]
+}

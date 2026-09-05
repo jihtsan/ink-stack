@@ -67,6 +67,7 @@ export type WeatherConfig = JsonObject & {
   showHumidity: boolean;
   showWind: boolean;
   showForecast: boolean;
+  forecastMode?: "daily" | "hourly" | "air-quality";
   showUpdatedAt: boolean;
   refreshSeconds: number;
   cacheTtlSeconds: number;
@@ -205,6 +206,12 @@ export type WeatherTestResponse = {
     humidity?: number;
     windSpeed?: number;
     forecastCount: number;
+    hourlyCount: number;
+    airQuality?: {
+      aqiDisplay: string;
+      category: string;
+      primaryPollutant?: string;
+    };
   };
 };
 

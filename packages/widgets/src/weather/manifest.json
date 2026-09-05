@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "configVersion": 1,
   "displayName": "和风天气",
-  "description": "当前天气与三日预报；连接及密钥由服务端管理。",
+  "description": "当前天气与可切换的每日、逐小时、空气质量扩展信息；连接及密钥由服务端管理。",
   "category": "content",
   "connectionType": "qweather",
   "supportedSizes": [{ "columns": 2, "rows": 2 }, { "columns": 4, "rows": 2 }],

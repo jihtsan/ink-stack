@@ -13,6 +13,15 @@
     "secretReferenceFields": ["secretRef"],
     "secretInput": { "name": "credential", "secret": true, "writeOnly": true },
     "browserSecretReturn": false,
-    "allowedPaths": ["/geo/v2/city/lookup", "/v7/weather/now", "/v7/weather/3d"]
+    "allowedPaths": [
+      "/geo/v2/city/lookup",
+      "/v7/weather/now",
+      "/v7/weather/3d",
+      "/v7/weather/24h",
+      "/weather/v1/current/{latitude}/{longitude}",
+      "/weather/v1/daily/{latitude}/{longitude}",
+      "/weather/v1/hourly/{latitude}/{longitude}",
+      "/airquality/v1/current/{latitude}/{longitude}"
+    ]
   }
 }

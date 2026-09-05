@@ -1,0 +1,26 @@
+{
+  "hours": [
+    {
+      "forecastTime": "2026-09-05T08:00+08:00",
+      "condition": { "text": "晴" },
+      "temperature": { "value": 26 },
+      "feelsLike": { "value": 27 },
+      "humidity": 0.65,
+      "wind": { "speed": { "value": 3.2 } }
+    },
+    {
+      "forecastTime": "2026-09-05T09:00+08:00",
+      "condition": { "text": "少云" },
+      "temperature": { "value": 27 },
+      "humidity": 0.62,
+      "wind": { "speed": { "value": 3.6 } }
+    },
+    {
+      "forecastTime": "2026-09-05T10:00+08:00",
+      "condition": { "text": "多云" },
+      "temperature": { "value": 28 },
+      "humidity": 0.58,
+      "wind": { "speed": { "value": 4.1 } }
+    }
+  ]
+}

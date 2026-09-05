@@ -11,7 +11,7 @@
 - 提供稳定的 PNG 地址，并按实际图片内容生成 ETag。
 - 将配置管理接口与设备读取接口分开设计，明确各自的访问权限。
 - 对远程数据请求设置超时；不允许配置读取服务器内部地址或本地文件。
-- 天气仅允许控制台分配的 `*.qweatherapi.com` HTTPS Host，使用 QWeather 当前 v1 经纬度接口；API Key/JWT 只在服务端凭据仓库中加密保存。
+- 天气仅允许控制台分配的 `*.qweatherapi.com` HTTPS Host，使用 QWeather 当前 v1 经纬度接口，并按模式读取逐日、逐小时或空气质量数据；API Key/JWT 只在服务端凭据仓库中加密保存。
 - Google OAuth 使用会话绑定 state、固定回调地址和加密 access/refresh token；CalendarList 与 Events 请求有固定页数、条数和响应大小上限。
 - 图片只接受 PNG/JPEG/WebP；平台相册写入 `data/images/albums`，登记目录必须是管理员明确提供的绝对路径，上传使用临时文件和原子改名。
 
