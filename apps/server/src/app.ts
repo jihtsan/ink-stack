@@ -136,7 +136,7 @@ export async function createApp(options:AppOptions){
     catch(error) { throw new HttpError(404,error instanceof Error && error.message==='image_source_not_found'?'image_source_not_found':'image_source_inaccessible'); }
   });
   app.post<{Params:{id:string};Headers:{'x-inkstack-filename'?:string};Body:Buffer}>('/api/image-sources/:id/uploads',async(r,reply)=>{
-    try { return reply.code(201).send(await imageManager.upload(r.params.id,r.headers['x-inkstack-filename']??'',r.body)); }
+    try { return reply.code(201).send(await imageManager.upload(r.params.id,decodeURIComponent(r.headers['x-inkstack-filename']??''),r.body)); }
     catch(error) { throw new HttpError(error instanceof Error && error.message==='image_source_not_found'?404:400,error instanceof Error?error.message:'image_upload_failed'); }
   });
   app.delete<{Params:{id:string}}>('/api/image-sources/:id',async r=>{

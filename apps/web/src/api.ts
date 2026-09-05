@@ -181,7 +181,7 @@ export const api = {
       body: file,
       headers: {
         "Content-Type": file.type || "application/octet-stream",
-        "X-InkStack-Filename": file.name
+        "X-InkStack-Filename": encodeURIComponent(file.name)
       }
     });
   },
