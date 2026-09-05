@@ -26,6 +26,16 @@ export type DragState = {
   valid: boolean;
 };
 
+export type LibraryDropState = {
+  type: string;
+  displayName: string;
+  column: number;
+  row: number;
+  columnSpan: number;
+  rowSpan: number;
+  valid: boolean;
+};
+
 interface WidgetCanvasProps {
   previewImageUrl?: string | null;
   showGrid?: boolean;
@@ -33,12 +43,16 @@ interface WidgetCanvasProps {
   selectedId: string | null;
   layoutIssues: LayoutIssue[];
   drag: DragState | null;
+  libraryDrop: LibraryDropState | null;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   onSelect(widgetId: string): void;
   onPointerDown(event: React.PointerEvent, widget: WidgetInstance): void;
   onPointerMove(event: React.PointerEvent, widget: WidgetInstance): void;
   onPointerUp(event: React.PointerEvent, widget: WidgetInstance): void;
   onPointerCancel(event: React.PointerEvent, widget: WidgetInstance): void;
+  onDragOver(event: React.DragEvent<HTMLDivElement>): void;
+  onDragLeave(event: React.DragEvent<HTMLDivElement>): void;
+  onDrop(event: React.DragEvent<HTMLDivElement>): void;
 }
 
 export function WidgetCanvas({
@@ -48,17 +62,24 @@ export function WidgetCanvas({
   selectedId,
   layoutIssues,
   drag,
+  libraryDrop,
   canvasRef,
   onSelect,
   onPointerDown,
   onPointerMove,
   onPointerUp,
-  onPointerCancel
+  onPointerCancel,
+  onDragOver,
+  onDragLeave,
+  onDrop
 }: WidgetCanvasProps) {
   return (
     <div
       className={`grid-canvas ${showGrid ? "" : "grid-hidden"}`}
       ref={canvasRef}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       style={
         {
           aspectRatio: `${dashboard.screen.width} / ${dashboard.screen.height}`,
@@ -80,6 +101,7 @@ export function WidgetCanvas({
           <div className="grid-cell" key={index} />
         ))}
       </div>
+      {libraryDrop ? <DropPreview dashboard={dashboard} drop={libraryDrop} /> : null}
       {dashboard.widgets.map((widget) => {
         const isSelected = widget.id === selectedId;
         const liveDrag = drag?.widgetId === widget.id ? drag : null;
@@ -100,6 +122,22 @@ export function WidgetCanvas({
           />
         );
       })}
+    </div>
+  );
+}
+
+function DropPreview({ dashboard, drop }: { dashboard: DashboardDraft; drop: LibraryDropState }) {
+  const rect = computePixelRect(dashboard.screen, dashboard.grid, drop);
+  const style = {
+    left: `${(rect.x / dashboard.screen.width) * 100}%`,
+    top: `${(rect.y / dashboard.screen.height) * 100}%`,
+    width: `${(rect.width / dashboard.screen.width) * 100}%`,
+    height: `${(rect.height / dashboard.screen.height) * 100}%`
+  };
+  return (
+    <div className={`widget-drop-preview ${drop.valid ? "" : "invalid"}`} style={style} aria-hidden="true">
+      <StudioIcon name="add" />
+      <span>{drop.valid ? `放置 ${drop.displayName}` : "此处无法放置"}</span>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createDefaultDashboard } from "@ink-stack/shared";
 import { renderDateWidget, renderTextWidget, renderTodoWidget } from "@ink-stack/widgets/render";
-import { WidgetCanvas, type DragState } from "./WidgetCanvas";
+import { WidgetCanvas, type DragState, type LibraryDropState } from "./WidgetCanvas";
 import { computePixelRect } from "./grid";
 import type { DashboardDraft, DateConfig, TextConfig, TodoConfig, WidgetInstance } from "./types";
 
@@ -28,7 +28,7 @@ function buildDashboard(widget: WidgetInstance, overrides: Partial<DashboardDraf
   return { ...dashboard, ...overrides, widgets: [widget] };
 }
 
-function renderDashboard(dashboard: DashboardDraft, options: { previewImageUrl?: string; drag?: DragState } = {}) {
+function renderDashboard(dashboard: DashboardDraft, options: { previewImageUrl?: string; drag?: DragState; libraryDrop?: LibraryDropState } = {}) {
   const noop = () => {};
   return renderToStaticMarkup(
     <WidgetCanvas
@@ -36,12 +36,16 @@ function renderDashboard(dashboard: DashboardDraft, options: { previewImageUrl?:
       selectedId={null}
       layoutIssues={[]}
       drag={options.drag ?? null}
+      libraryDrop={options.libraryDrop ?? null}
       canvasRef={{ current: null }}
       onSelect={noop}
       onPointerDown={noop}
       onPointerMove={noop}
       onPointerUp={noop}
       onPointerCancel={noop}
+      onDragOver={noop}
+      onDragLeave={noop}
+      onDrop={noop}
       {...(options.previewImageUrl ? { previewImageUrl: options.previewImageUrl } : {})}
     />
   );
@@ -174,6 +178,15 @@ describe("widget editor presentation", () => {
 
     expect(html).toContain(`left:${percent(draggedRect.x / dashboard.screen.width)};top:${percent(draggedRect.y / dashboard.screen.height)};width:${percent(draggedRect.width / dashboard.screen.width)};height:${percent(draggedRect.height / dashboard.screen.height)}`);
     expect(html).toContain(`width:${percent(dashboard.screen.width / originalRect.width)};height:${percent(dashboard.screen.height / originalRect.height)};left:${percent(-originalRect.x / originalRect.width)};top:${percent(-originalRect.y / originalRect.height)}`);
+  });
+
+  it("shows a drop target preview for a library component", () => {
+    const dashboard = buildDashboard(buildWidget("text", { title: "", text: "", size: "medium", align: "left", showBorder: true, showBackground: true }));
+    const drop: LibraryDropState = { type: "weather", displayName: "和风天气", column: 1, row: 1, columnSpan: 2, rowSpan: 2, valid: true };
+    const html = renderDashboard(dashboard, { libraryDrop: drop });
+
+    expect(html).toContain("widget-drop-preview");
+    expect(html).toContain("放置 和风天气");
   });
 
   it("only shows the Codex placeholder when no current preview is supplied", () => {

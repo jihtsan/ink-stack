@@ -75,7 +75,8 @@ button { transition: background-color 120ms, border-color 120ms, box-shadow 120m
 .category-filter button { padding: 5px 9px; border: 0; border-radius: 20px; background: #f1eff3; color: #6d6975; font-size: 10px; }
 .category-filter button.active { background: #252429; color: white; }
 .library-list { display: grid; flex-shrink: 0; gap: 9px; }
-.library-button { display: grid; width: 100%; gap: 10px; padding: 13px; text-align: left; }
+.library-button { display: grid; width: 100%; gap: 10px; padding: 13px; text-align: left; cursor: grab; }
+.library-button:active { cursor: grabbing; }
 .library-button:hover:not(:disabled) { border-color: #92b4d9; box-shadow: 0 4px 12px #27203108; }
 .library-card-heading { display: flex; align-items: center; gap: 8px; }
 .library-card-heading strong { font-size: 12px; font-weight: 650; }
@@ -112,6 +113,8 @@ button { transition: background-color 120ms, border-color 120ms, box-shadow 120m
 .grid-cells { position: absolute; inset: var(--grid-margin-top) var(--grid-margin-right) var(--grid-margin-bottom) var(--grid-margin-left); display: grid; grid-template-columns: repeat(var(--grid-columns), 1fr); grid-template-rows: repeat(var(--grid-rows), 1fr); gap: var(--grid-row-gap) var(--grid-column-gap); pointer-events: none; }
 .grid-cell { outline: 1px dashed #cbc8c1; }
 .grid-hidden .grid-cells { visibility: hidden; }
+.widget-drop-preview { position: absolute; z-index: 3; display: flex; align-items: center; justify-content: center; gap: 6px; border: 2px dashed #397bc0; background: #edf4facc; color: #1f5d99; font-size: clamp(9px, 2.2cqw, 13px); font-weight: 650; pointer-events: none; }
+.widget-drop-preview.invalid { border-color: #ba363c; background: #fff1f1cc; color: #9a2c32; }
 .widget-card { position: absolute; display: block; border: 0; border-radius: 0; padding: 0; background: transparent; color: #000; text-align: left; touch-action: none; user-select: none; box-shadow: none; }
 .widget-card:hover { outline: 1px solid #9eaaaf; }
 .widget-card.selected { z-index: 2; outline: 2px solid var(--primary); outline-offset: 1px; }

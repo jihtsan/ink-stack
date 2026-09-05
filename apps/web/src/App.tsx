@@ -16,7 +16,7 @@ import {
   updateWidget,
   validateLayout
 } from "./grid";
-import { WidgetCanvas, type DragState } from "./WidgetCanvas";
+import { WidgetCanvas, type DragState, type LibraryDropState } from "./WidgetCanvas";
 import type {
   CalendarConfig,
   CodexConnectionResponse,
@@ -91,6 +91,8 @@ type EditorAction =
   | { type: "publishDone"; job: JobResponse }
   | { type: "jobFailed"; kind: "preview" | "publish"; message: string }
   | { type: "displayToken"; url: string };
+
+const LIBRARY_DRAG_MIME = "application/x-inkstack-widget";
 
 const emptyPreview: PreviewState = {
   status: "idle",
@@ -507,6 +509,7 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [state, dispatch] = useReducer(reducer, initialState);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [libraryDrop, setLibraryDrop] = useState<LibraryDropState | null>(null);
   const [codexSources, setCodexSources] = useState<CodexConnectionResponse>({
     connections: [],
     groups: [],
@@ -515,6 +518,7 @@ export default function App() {
   const [connectionDraftName, setConnectionDraftName] = useState("本机 Codex");
   const [connectionTest, setConnectionTest] = useState<CodexConnectionTestResponse | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const libraryDragRef = useRef<PublicWidgetDefinition | null>(null);
   const connectionTestSeq = useRef(0);
 
   const selectedWidget = useMemo(
@@ -634,8 +638,8 @@ export default function App() {
     [password, refreshCodexSources, refreshDashboard]
   );
 
-  const addWidget = useCallback(
-    (definition: PublicWidgetDefinition) => {
+  const addWidgetAt = useCallback(
+    (definition: PublicWidgetDefinition, requestedPosition?: Pick<WidgetInstance, "column" | "row">) => {
       const id = makeId(definition.manifest.type as WidgetType);
       const size = definition.manifest.defaultSize;
       const baseWidget: WidgetInstance = {
@@ -649,21 +653,29 @@ export default function App() {
         config: cloneConfig(definition.defaults)
       };
       const position = findFirstAvailablePlacement(
-        state.dashboard.grid,
-        state.dashboard.widgets,
-        size
+        state.dashboard.grid, state.dashboard.widgets, size
       );
-      if (!position) {
+      const requestedPlacement = requestedPosition
+        ? { ...requestedPosition, columnSpan: size.columns, rowSpan: size.rows }
+        : null;
+      const resolvedPosition = requestedPlacement ?? position;
+      const positionedWidget = resolvedPosition ? { ...baseWidget, ...resolvedPosition } : null;
+      if (!positionedWidget || (requestedPlacement && !canPlace(state.dashboard.widgets, positionedWidget, state.dashboard))) {
         dispatch({
           type: "setNotice",
-          notice: { kind: "warning", message: `没有可容纳 ${definition.manifest.displayName} 的空位` }
+          notice: {
+            kind: "warning",
+            message: requestedPlacement
+              ? `当前位置无法放置 ${definition.manifest.displayName}`
+              : `没有可容纳 ${definition.manifest.displayName} 的空位`
+          }
         });
         return;
       }
       mutateDashboard(
         {
           ...state.dashboard,
-          widgets: [...state.dashboard.widgets, { ...baseWidget, ...position }]
+          widgets: [...state.dashboard.widgets, positionedWidget]
         },
         id,
         { kind: "success", message: `已添加 ${definition.manifest.displayName}` }
@@ -673,6 +685,8 @@ export default function App() {
     },
     [mutateDashboard, state.dashboard]
   );
+
+  const addWidget = useCallback((definition: PublicWidgetDefinition) => addWidgetAt(definition), [addWidgetAt]);
 
   const duplicateWidget = useCallback(() => {
     if (!selectedWidget || !selectedDefinition) {
@@ -1072,6 +1086,86 @@ export default function App() {
     [drag]
   );
 
+  const getLibraryDefinitionFromTransfer = useCallback((dataTransfer: DataTransfer) => {
+    const type = dataTransfer.getData(LIBRARY_DRAG_MIME) || dataTransfer.getData("text/plain");
+    return (type ? getWidgetDefinition(type) : undefined) ?? libraryDragRef.current;
+  }, []);
+
+  const handleLibraryDragStart = useCallback((event: React.DragEvent, definition: PublicWidgetDefinition) => {
+    libraryDragRef.current = definition;
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData(LIBRARY_DRAG_MIME, definition.manifest.type);
+    event.dataTransfer.setData("text/plain", definition.manifest.type);
+    setLibraryDrop(null);
+  }, []);
+
+  const handleLibraryDragEnd = useCallback(() => {
+    libraryDragRef.current = null;
+    setLibraryDrop(null);
+  }, []);
+
+  const handleLibraryDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      const definition = getLibraryDefinitionFromTransfer(event.dataTransfer);
+      if (!definition || canvasMode !== "layout") {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      const pointer = pointerToScreen(event.clientX, event.clientY);
+      if (!pointer) {
+        return;
+      }
+      const size = definition.manifest.defaultSize;
+      const next = snapPointerToGrid(state.dashboard.screen, state.dashboard.grid, pointer, size);
+      const candidate: WidgetInstance = {
+        id: "library-drop-preview",
+        type: definition.manifest.type,
+        configVersion: definition.manifest.configVersion,
+        ...next,
+        columnSpan: size.columns,
+        rowSpan: size.rows,
+        config: cloneConfig(definition.defaults)
+      };
+      setLibraryDrop({
+        type: definition.manifest.type,
+        displayName: definition.manifest.displayName,
+        column: next.column,
+        row: next.row,
+        columnSpan: size.columns,
+        rowSpan: size.rows,
+        valid: canPlace(state.dashboard.widgets, candidate, state.dashboard)
+      });
+    },
+    [canvasMode, getLibraryDefinitionFromTransfer, pointerToScreen, state.dashboard]
+  );
+
+  const handleLibraryDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    const relatedTarget = event.relatedTarget as Node | null;
+    if (!relatedTarget || !event.currentTarget.contains(relatedTarget)) {
+      setLibraryDrop(null);
+    }
+  }, []);
+
+  const handleLibraryDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      const definition = getLibraryDefinitionFromTransfer(event.dataTransfer);
+      if (!definition) {
+        return;
+      }
+      event.preventDefault();
+      const pointer = pointerToScreen(event.clientX, event.clientY);
+      if (pointer) {
+        const size = definition.manifest.defaultSize;
+        const position = snapPointerToGrid(state.dashboard.screen, state.dashboard.grid, pointer, size);
+        addWidgetAt(definition, position);
+      }
+      libraryDragRef.current = null;
+      setLibraryDrop(null);
+    },
+    [addWidgetAt, getLibraryDefinitionFromTransfer, pointerToScreen, state.dashboard]
+  );
+
   if (loadState === "checking") {
     return <div className="centered">正在读取会话与草稿…</div>;
   }
@@ -1153,7 +1247,7 @@ export default function App() {
             <div className="category-filter">{[["all", "全部"], ["local", "本地组件"], ["data", "数据监控"]].map(([key, label]) => <button key={key} type="button" aria-pressed={libraryCategory === key} className={libraryCategory === key ? "active" : ""} onClick={() => setLibraryCategory(key)}>{label}</button>)}</div>
           </section>
           <div className="library-list">
-            {filteredCatalog.map((definition) => <LibraryButton key={definition.manifest.type} definition={definition} onAdd={() => addWidget(definition)} />)}
+            {filteredCatalog.map((definition) => <LibraryButton key={definition.manifest.type} definition={definition} onAdd={() => addWidget(definition)} onDragStart={handleLibraryDragStart} onDragEnd={handleLibraryDragEnd} />)}
             {!filteredCatalog.length && <div className="empty-state"><StudioIcon name="search" /><p>没有符合条件的组件</p><button type="button" className="ghost-button" onClick={() => { setLibraryQuery(""); setLibraryCategory("all"); setLibrarySize("all"); }}>清除筛选</button></div>}
           </div>
           <section className="layers-panel">
@@ -1161,7 +1255,7 @@ export default function App() {
             {state.dashboard.widgets.map((widget, index) => <button type="button" className={`layer-row ${widget.id === state.selectedId ? "active" : ""}`} key={widget.id} aria-pressed={widget.id === state.selectedId} onClick={() => selectWidget(widget.id)}><StudioIcon name={widgetIcon(widget.type)} /><strong>{getWidgetDefinition(widget.type)?.manifest.displayName ?? widget.type} {index + 1}</strong><small>{widget.columnSpan}×{widget.rowSpan}</small></button>)}
             {!state.dashboard.widgets.length && <p className="muted-copy">从组件库添加第一个组件。</p>}
           </section>
-          <div className="hint-card"><StudioIcon name="info" /><p>点击添加，拖动排版。<br />方向键微调位置，删除后可撤销。</p></div>
+          <div className="hint-card"><StudioIcon name="info" /><p>拖拽组件到画布，或点击添加。<br />画布内可继续拖动排版；方向键微调位置，删除后可撤销。</p></div>
         </aside>
 
         <section className="canvas-column" aria-label="设计画布">
@@ -1176,10 +1270,11 @@ export default function App() {
             <div className="device-frame" style={{ width: zoom === "100" ? "max-content" : `min(100%, max(260px, min(600px, calc((100dvh - 350px) * ${state.dashboard.screen.width / state.dashboard.screen.height} + 44px))))`, flexShrink: 0 }}>
               <div className="device-screen-wrap" style={zoom === "100" ? { width: state.dashboard.screen.width } : undefined}>
                 {canvasMode === "layout" ? <WidgetCanvas
-                  dashboard={state.dashboard} selectedId={state.selectedId} layoutIssues={layoutIssues} drag={drag} canvasRef={canvasRef} showGrid={showGrid} previewImageUrl={previewCurrent ? state.preview.url : null}
+                  dashboard={state.dashboard} selectedId={state.selectedId} layoutIssues={layoutIssues} drag={drag} libraryDrop={libraryDrop} canvasRef={canvasRef} showGrid={showGrid} previewImageUrl={previewCurrent ? state.preview.url : null}
                   onSelect={selectWidget}
                   onPointerDown={(event, widget) => { setInspectorTab("properties"); startDrag(event, widget); }}
                   onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={cancelDrag}
+                  onDragOver={handleLibraryDragOver} onDragLeave={handleLibraryDragLeave} onDrop={handleLibraryDrop}
                 /> : state.preview.url ? <img className="device-preview" src={state.preview.url} alt="服务端生成的最终 PNG 预览" /> : <div className="device-empty" style={{ aspectRatio: `${state.dashboard.screen.width} / ${state.dashboard.screen.height}` }}><StudioIcon name="visibility" /><strong>{previewBusy ? "正在生成墨水屏画面" : "尚无可用预览"}</strong><p>{state.preview.message}</p>{!previewBusy && <button type="button" className="ghost-button" onClick={createPreview}>重新生成</button>}</div>}
               </div>
               <div className="device-wordmark">kindle</div>
@@ -1240,8 +1335,19 @@ function PanelHeader({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function LibraryButton({ definition, onAdd }: { definition: PublicWidgetDefinition; onAdd: () => void }) {
+function LibraryButton({
+  definition,
+  onAdd,
+  onDragStart,
+  onDragEnd
+}: {
+  definition: PublicWidgetDefinition;
+  onAdd: () => void;
+  onDragStart: (event: React.DragEvent, definition: PublicWidgetDefinition) => void;
+  onDragEnd: () => void;
+}) {
   const { manifest } = definition;
+  const suppressClick = useRef(false);
   const sourceLabel = manifest.type === "calendar"
     ? "Google 日历 · OAuth"
     : manifest.type === "weather"
@@ -1250,7 +1356,29 @@ function LibraryButton({ definition, onAdd }: { definition: PublicWidgetDefiniti
         ? "相册目录 · 服务端资源"
         : manifest.category === "account" ? "数据连接 · Codex" : "本地组件 · 无需连接";
   return (
-    <button type="button" className="library-button" onClick={onAdd} aria-label={`添加${manifest.displayName}`}>
+    <button
+      type="button"
+      className="library-button"
+      draggable
+      onClick={() => {
+        if (suppressClick.current) {
+          return;
+        }
+        onAdd();
+      }}
+      onDragStart={(event) => {
+        suppressClick.current = true;
+        onDragStart(event, definition);
+      }}
+      onDragEnd={() => {
+        onDragEnd();
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+      }}
+      aria-label={`添加${manifest.displayName}`}
+      title="拖拽到画布，或点击添加"
+    >
       <span className="library-card-heading"><StudioIcon name={widgetIcon(manifest.type)} /><strong>{manifest.displayName}</strong><small>{manifest.defaultSize.columns}×{manifest.defaultSize.rows}</small></span>
       <span className="library-description">{manifest.description}</span>
       <span className="library-card-footer"><span>{sourceLabel}</span><StudioIcon name="add" /></span>
