@@ -32,7 +32,7 @@ mkdirSync(dirname(outputPath), { recursive: true });
 // generated validators can be loaded by the server's ESM worker.
 const generated = standaloneCode(ajv, exports).replace(
   /const (func\d+) = require\("ajv\/dist\/runtime\/ucs2length"\)\.default;/g,
-  'import $1 from "ajv/dist/runtime/ucs2length.js";'
+  (_, name) => `import ${name}Module from "ajv/dist/runtime/ucs2length.js";\nconst ${name} = ${name}Module.default ?? ${name}Module;`
 );
 writeFileSync(outputPath, `${generated}\n`);
 writeFileSync(
