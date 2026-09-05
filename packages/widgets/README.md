@@ -1,8 +1,8 @@
 # 小组件
 
-状态：已实现首版公共 catalog、服务端 registry、四个内置组件和组件配置校验。
+状态：已实现公共 catalog、服务端 registry、五个内置组件和组件配置校验；新增 calendar 的真实 Google OAuth 与专用编辑器仍待接入。
 
-这里按“一种组件，一个文件夹”组织元数据、配置校验、绘制、可选取数和样例。首版包含 `text`、`date`、`todo` 和固定 2×4 的 `codex-usage`。
+这里按“一种组件，一个文件夹”组织元数据、配置校验、绘制、可选取数和样例。包含 `text`、`date`、`todo`、固定 2×4 的 `codex-usage` 及 [calendar](src/calendar/README.md)（4×2 / 4×3 / 4×4）。
 
 公共入口：
 

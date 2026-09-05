@@ -3,6 +3,8 @@ import { createDefaultDashboard, type DashboardDraft } from '@ink-stack/shared';
 import { collectWidgetData } from './widget-data.js';
 import type { Connections } from '../data/connections.js';
 import type { CodexLimitsResult } from '../connectors/codex-app-server.js';
+import { getWidgetDefinition } from '@ink-stack/widgets';
+import { CalendarAdapterError } from '@ink-stack/widgets/calendar/server';
 
 function dashboard(widgets: DashboardDraft['widgets']): DashboardDraft {
   return createDefaultDashboard({
@@ -70,6 +72,24 @@ function connectionsWithPrevious(current: CodexLimitsResult, previous: CodexLimi
 }
 
 describe('collectWidgetData', () => {
+  it('keeps local calendars available without fabricating Google authorization or reading Codex', async () => {
+    const local = { ...codexWidget('calendar'), type: 'calendar', config: { ...getWidgetDefinition('calendar')!.defaults } };
+    const connected = { ...local, id: 'connected', config: { ...local.config, connectionId: 'google-test' } };
+    const unused = { read: async () => { throw new Error('Codex should not be called'); } } as unknown as Connections;
+    const data = await collectWidgetData(dashboard([local, connected]), unused);
+    expect(data.calendar?.status).toBe('unauthenticated');
+    expect(data.connected?.status).toBe('unsupported');
+  });
+
+  it('collects calendar and Codex independently and preserves authentication failure', async () => {
+    const calendar = { ...codexWidget('calendar'), type: 'calendar', config: { ...getWidgetDefinition('calendar')!.defaults, connectionId: 'google-test' } };
+    const data = await collectWidgetData(dashboard([calendar, codexWidget('usage')]), connections([result()]), {
+      read: async () => { throw new CalendarAdapterError('unauthenticated'); }
+    });
+    expect(data.calendar?.status).toBe('unauthenticated');
+    expect(data.usage?.status).toBe('fresh');
+  });
+
   it('normalizes real raw quota fields without forwarding account identity', async () => {
     const data = await collectWidgetData(dashboard([codexWidget('usage')]), connections([result()]));
     const envelope = data.usage!;

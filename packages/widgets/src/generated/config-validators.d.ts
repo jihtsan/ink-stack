@@ -15,3 +15,4 @@ export const validateTextConfig: GeneratedValidateFunction;
 export const validateDateConfig: GeneratedValidateFunction;
 export const validateTodoConfig: GeneratedValidateFunction;
 export const validateCodexUsageConfig: GeneratedValidateFunction;
+export const validateCalendarConfig: GeneratedValidateFunction;

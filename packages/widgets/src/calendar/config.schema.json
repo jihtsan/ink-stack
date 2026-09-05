@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "layout", "month", "weekStartsOn", "showWeekdays", "connectionId", "connectionRevision", "calendarIds", "eventRangeDays", "maxVisible"],
+  "properties": {
+    "title": { "type": "string", "pattern": "^[\\s\\S]{0,40}$" },
+    "layout": { "type": "string", "enum": ["month", "list", "month-list"] },
+    "month": { "type": "string", "pattern": "^(|20[0-9]{2}-(0[1-9]|1[0-2]))$", "description": "留空显示当前月；指定月支持 2000–2099，仅影响月历布局" },
+    "weekStartsOn": { "type": "integer", "enum": [0, 1] },
+    "showWeekdays": { "type": "boolean" },
+    "connectionId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{0,120}$" },
+    "connectionRevision": { "type": "integer", "minimum": 1 },
+    "calendarIds": { "type": "array", "minItems": 1, "maxItems": 5, "uniqueItems": true, "items": { "type": "string", "pattern": "^[^\\s]{1,256}$" } },
+    "eventRangeDays": { "type": "integer", "minimum": 1, "maximum": 31 },
+    "maxVisible": { "type": "integer", "minimum": 1, "maximum": 20 }
+  }
+}

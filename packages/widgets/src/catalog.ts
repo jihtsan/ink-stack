@@ -1,6 +1,7 @@
 import type { JsonObject, WidgetInstance, WidgetManifest } from "@ink-stack/shared";
 import type { PublicWidgetDefinition, WidgetConfigValidation } from "./types.js";
 import {
+  validateCalendarConfig,
   validateCodexUsageConfig,
   validateDateConfig,
   validateTextConfig,
@@ -21,12 +22,17 @@ import codexManifest from "./codex-usage/manifest.json" with { type: "json" };
 import codexConfigSchema from "./codex-usage/config.schema.json" with { type: "json" };
 import codexConnectionSchema from "./codex-usage/connection.schema.json" with { type: "json" };
 import codexDefaults from "./codex-usage/defaults.json" with { type: "json" };
+import calendarManifest from "./calendar/manifest.json" with { type: "json" };
+import calendarSchema from "./calendar/config.schema.json" with { type: "json" };
+import calendarDefaults from "./calendar/defaults.json" with { type: "json" };
+import calendarConnectionSchema from "./calendar/connection.schema.json" with { type: "json" };
 
 export const widgetCatalog = [
   defineWidget(textManifest, textConfigSchema, textDefaults),
   defineWidget(dateManifest, dateConfigSchema, dateDefaults),
   defineWidget(todoManifest, todoConfigSchema, todoDefaults),
-  defineWidget(codexManifest, codexConfigSchema, codexDefaults, codexConnectionSchema)
+  defineWidget(codexManifest, codexConfigSchema, codexDefaults, codexConnectionSchema),
+  defineWidget(calendarManifest, calendarSchema, calendarDefaults, calendarConnectionSchema)
 ] as const satisfies readonly PublicWidgetDefinition[];
 
 export const widgetCatalogByType = new Map(widgetCatalog.map((definition) => [definition.manifest.type, definition]));
@@ -45,7 +51,8 @@ const configValidators = new Map<string, GeneratedValidateFunction>([
   ["text", validateTextConfig],
   ["date", validateDateConfig],
   ["todo", validateTodoConfig],
-  ["codex-usage", validateCodexUsageConfig]
+  ["codex-usage", validateCodexUsageConfig],
+  ["calendar", validateCalendarConfig]
 ]);
 
 assertCatalogIsConsistent(widgetCatalog);

@@ -5,7 +5,7 @@ import { Ajv } from "ajv";
 import standaloneCode from "ajv/dist/standalone/index.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const widgets = ["text", "date", "todo", "codex-usage"];
+const widgets = ["text", "date", "todo", "codex-usage", "calendar"];
 const ajv = new Ajv({
   allErrors: true,
   strict: true,
@@ -47,6 +47,7 @@ export const validateTextConfig: GeneratedValidateFunction;
 export const validateDateConfig: GeneratedValidateFunction;
 export const validateTodoConfig: GeneratedValidateFunction;
 export const validateCodexUsageConfig: GeneratedValidateFunction;
+export const validateCalendarConfig: GeneratedValidateFunction;
 `
 );
 

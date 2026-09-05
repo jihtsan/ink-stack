@@ -1,13 +1,17 @@
 import type {DashboardDraft,WidgetDataEnvelope} from '@ink-stack/shared';
 import { normalizeCodexUsageSnapshot, type RawCodexRateLimitsResponse } from '@ink-stack/widgets/codex-usage/normalize';
 import type {Connections} from '../data/connections.js';
+import { collectCalendarData, type CalendarAdapter, type CalendarConfig } from '@ink-stack/widgets/calendar/server';
 
-export async function collectWidgetData(dashboard:DashboardDraft,connections:Connections):Promise<Record<string,WidgetDataEnvelope>>{
-  const widgets=dashboard.widgets.filter(w=>w.type==='codex-usage');
-  if(!widgets.length)return {};
-  const result=await connections.read();
+export async function collectWidgetData(dashboard:DashboardDraft,connections:Connections,calendarAdapter?:CalendarAdapter):Promise<Record<string,WidgetDataEnvelope>>{
   const data:Record<string,WidgetDataEnvelope>={};
   const now=new Date().toISOString();
+  for(const widget of dashboard.widgets.filter(w=>w.type==='calendar')){
+    data[widget.id]=await collectCalendarData(widget.config as unknown as CalendarConfig,{now,timeZone:dashboard.timeZone},calendarAdapter);
+  }
+  const widgets=dashboard.widgets.filter(w=>w.type==='codex-usage');
+  if(!widgets.length)return data;
+  const result=await connections.read();
   for(const widget of widgets){
     let source=result;
     const previous=connections.previous();

@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode"],
+  "properties": { "mode": { "type": "string", "const": "google-calendar-oauth" } },
+  "x-inkstack": {
+    "implementationStatus": "adapter-contract-only",
+    "secretFields": [],
+    "browserSecretReturn": false,
+    "authorizationFlow": "server-managed-oauth",
+    "serverManagedSecrets": ["clientSecret", "refreshToken", "accessToken"],
+    "scopes": ["https://www.googleapis.com/auth/calendar.events.readonly", "https://www.googleapis.com/auth/calendar.calendarlist.readonly"]
+  }
+}

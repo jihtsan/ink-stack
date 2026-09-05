@@ -1,0 +1,13 @@
+{
+  "status": "fresh",
+  "observedAt": "2026-09-05T00:00:00.000Z",
+  "data": {
+    "source": "fixture",
+    "truncated": false,
+    "events": [
+      { "id": "all-day", "calendarId": "primary", "title": "阅读日", "allDay": true, "start": "2026-09-05", "end": "2026-09-06" },
+      { "id": "meeting", "calendarId": "primary", "title": "项目讨论与中文长标题示例", "allDay": false, "start": "2026-09-05T10:00:00+08:00", "end": "2026-09-05T11:00:00+08:00" },
+      { "id": "trip", "calendarId": "primary", "title": "周末出行", "allDay": true, "start": "2026-09-06", "end": "2026-09-08" }
+    ]
+  }
+}

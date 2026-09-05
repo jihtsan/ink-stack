@@ -19,7 +19,7 @@ packages/widgets/src/weather/
 └── fixtures/             # 示例配置、模拟数据、空态与错误样例
 ```
 
-这是目标结构。首版 text、date、todo、codex-usage 目录已有运行代码，weather、calendar、image 仍为后续规划。小组件不要求每个尺寸建立一个文件；只有布局明显不同时才拆分 views。本地文字、日期、手动待办不需要 server.ts。
+这是目标结构。text、date、todo、codex-usage 目录已有运行代码；calendar 已有月历/列表、配置校验与服务端适配契约，真实 Google OAuth 和专用编辑器待接入。weather、image 仍为后续规划。小组件不要求每个尺寸建立一个文件；只有布局明显不同时才拆分 views。本地文字、日期、手动待办不需要 server.ts。
 
 ## 元数据与实例分开
 
