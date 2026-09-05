@@ -1,5 +1,6 @@
 import type { DashboardDraft, JsonObject, WidgetInstance, WidgetSize } from "@ink-stack/shared";
 import type { PublicWidgetDefinition } from "@ink-stack/widgets";
+import type { WeatherEnvelope } from "@ink-stack/widgets/weather/types";
 
 export type { DashboardDraft, JsonObject, PublicWidgetDefinition, WidgetInstance, WidgetSize };
 
@@ -198,6 +199,8 @@ export type WeatherTestResponse = {
   reason?: "missing" | "expired" | "connection" | "authentication" | "location" | "timeout" | "network" | "response";
   observedAt?: string;
   message: string;
+  /** Normalized, non-secret data used only for the current editor preview. */
+  preview?: WeatherEnvelope;
   summary?: {
     location: string;
     temperature: number;

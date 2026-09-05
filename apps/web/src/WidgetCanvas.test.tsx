@@ -5,6 +5,7 @@ import { renderDateWidget, renderTextWidget, renderTodoWidget } from "@ink-stack
 import { WidgetCanvas, type DragState, type LibraryDropState } from "./WidgetCanvas";
 import { computePixelRect } from "./grid";
 import type { DashboardDraft, DateConfig, TextConfig, TodoConfig, WidgetInstance } from "./types";
+import type { WeatherEnvelope } from "@ink-stack/widgets/weather/types";
 
 const NOW = "2026-09-05T00:00:00.000Z";
 
@@ -28,12 +29,12 @@ function buildDashboard(widget: WidgetInstance, overrides: Partial<DashboardDraf
   return { ...dashboard, ...overrides, widgets: [widget] };
 }
 
-function renderDashboard(dashboard: DashboardDraft, options: { previewImageUrl?: string; drag?: DragState; libraryDrop?: LibraryDropState } = {}) {
+function renderDashboard(dashboard: DashboardDraft, options: { previewImageUrl?: string; weatherPreview?: WeatherEnvelope; selectedId?: string | null; drag?: DragState; libraryDrop?: LibraryDropState } = {}) {
   const noop = () => {};
   return renderToStaticMarkup(
     <WidgetCanvas
       dashboard={dashboard}
-      selectedId={null}
+      selectedId={options.selectedId ?? null}
       layoutIssues={[]}
       drag={options.drag ?? null}
       libraryDrop={options.libraryDrop ?? null}
@@ -47,6 +48,7 @@ function renderDashboard(dashboard: DashboardDraft, options: { previewImageUrl?:
       onDragLeave={noop}
       onDrop={noop}
       {...(options.previewImageUrl ? { previewImageUrl: options.previewImageUrl } : {})}
+      {...(options.weatherPreview ? { weatherPreview: options.weatherPreview } : {})}
     />
   );
 }
@@ -192,5 +194,41 @@ describe("widget editor presentation", () => {
   it("only shows the Codex placeholder when no current preview is supplied", () => {
     const config = { alias: "工作", connectionId: "local", connectionRevision: 1, quotaGroupId: "codex", lowBalanceThreshold: 20 };
     expect(renderWidget("codex-usage", config)).toContain("生成预览以查看额度");
+  });
+
+  it("shows normalized weather test data in the selected card before a connection is saved", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
+    const widget = buildWidget("weather", {
+      title: "天气",
+      locationMode: "city",
+      city: "北京",
+      latitude: 0,
+      longitude: 0,
+      units: "m",
+      connectionId: "",
+      connectionRevision: 1,
+      showTemperature: true,
+      showCondition: true,
+      showFeelsLike: false,
+      showHumidity: false,
+      showWind: false,
+      showForecast: false,
+      showUpdatedAt: true,
+      refreshSeconds: 900,
+      cacheTtlSeconds: 1800,
+      maxStaleSeconds: 7200
+    });
+    const preview: WeatherEnvelope = {
+      status: "fresh",
+      observedAt: NOW,
+      data: { location: "北京", units: "m", observedAt: NOW, temperature: 24, condition: "晴", forecast: [], hourlyForecast: [] }
+    };
+    const html = renderDashboard(buildDashboard(widget), { selectedId: widget.id, previewImageUrl: "/api/previews/old.png", weatherPreview: preview });
+
+    expect(html).toContain("24°C");
+    expect(html).toContain("晴");
+    expect(html).toContain("和风天气的测试数据预览");
+    expect(html).not.toContain("/api/previews/old.png");
   });
 });

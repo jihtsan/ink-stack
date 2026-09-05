@@ -27,8 +27,8 @@ const objectSchema=(properties:Record<string,unknown>,required:string[]=[])=>({t
 const integer={type:'integer',minimum:0};
 const emptySettings=objectSchema({});
 const connectionBody=objectSchema({name:{type:'string',minLength:1,maxLength:80},type:{const:'codex-local',type:'string'},settings:emptySettings},['name','type','settings']);
-const weatherConnectionBody=objectSchema({name:{type:'string',minLength:1,maxLength:80},apiHost:{type:'string',minLength:1,maxLength:253},authMode:{type:'string',enum:['jwt','api-key']},apiKey:{type:'string',minLength:1,maxLength:8192}},['name','apiHost','authMode','apiKey']);
-const weatherTestBody=objectSchema({connectionId:{type:'string',maxLength:80},connectionRevision:integer,config:{type:'object',additionalProperties:true},apiHost:{type:'string',maxLength:253},authMode:{type:'string',enum:['jwt','api-key']},apiKey:{type:'string',maxLength:8192}},['config']);
+const weatherConnectionBody=objectSchema({name:{type:'string',minLength:1,maxLength:80},apiHost:{type:'string',minLength:1,maxLength:512},authMode:{type:'string',enum:['jwt','api-key']},apiKey:{type:'string',minLength:1,maxLength:8192}},['name','apiHost','authMode','apiKey']);
+const weatherTestBody=objectSchema({connectionId:{type:'string',maxLength:80},connectionRevision:integer,config:{type:'object',additionalProperties:true},apiHost:{type:'string',maxLength:512},authMode:{type:'string',enum:['jwt','api-key']},apiKey:{type:'string',maxLength:8192}},['config']);
 
 export async function createApp(options:AppOptions){
   const app=Fastify({logger:false,bodyLimit:128*1024,ajv:{customOptions:{coerceTypes:false,removeAdditional:false,useDefaults:false,allErrors:false}}});
@@ -123,7 +123,7 @@ export async function createApp(options:AppOptions){
       if(!r.body.apiHost||!r.body.authMode||!r.body.apiKey) throw new HttpError(400,'weather_connection_required');
       envelope=await connections.testWeather(config,{name:'temporary',apiHost:r.body.apiHost,authMode:r.body.authMode,apiKey:r.body.apiKey});
     }
-    return {status:envelope.status,reason:envelope.reason,observedAt:envelope.observedAt,message:weatherEnvelopeMessage(envelope),summary:envelope.data?{location:envelope.data.location,temperature:envelope.data.temperature,condition:envelope.data.condition,feelsLike:envelope.data.feelsLike,humidity:envelope.data.humidity,windSpeed:envelope.data.windSpeed,forecastCount:envelope.data.forecast.length,hourlyCount:envelope.data.hourlyForecast?.length??0,airQuality:envelope.data.airQuality?{aqiDisplay:envelope.data.airQuality.aqiDisplay,category:envelope.data.airQuality.category,primaryPollutant:envelope.data.airQuality.primaryPollutant}:undefined}:undefined};
+    return {status:envelope.status,reason:envelope.reason,observedAt:envelope.observedAt,message:weatherEnvelopeMessage(envelope),summary:envelope.data?{location:envelope.data.location,temperature:envelope.data.temperature,condition:envelope.data.condition,feelsLike:envelope.data.feelsLike,humidity:envelope.data.humidity,windSpeed:envelope.data.windSpeed,forecastCount:envelope.data.forecast.length,hourlyCount:envelope.data.hourlyForecast?.length??0,airQuality:envelope.data.airQuality?{aqiDisplay:envelope.data.airQuality.aqiDisplay,category:envelope.data.airQuality.category,primaryPollutant:envelope.data.airQuality.primaryPollutant}:undefined}:undefined,preview:envelope.data?{status:envelope.status,reason:envelope.reason,observedAt:envelope.observedAt,staleAt:envelope.staleAt,data:envelope.data}:undefined};
   });
   const imageSourceBody=objectSchema({type:{type:'string',enum:['album','directory']},name:{type:'string',minLength:1,maxLength:80},root:{type:'string',maxLength:4096}},['type','name']);
   app.get('/api/image-sources',async()=>({sources:imageManager.list()}));

@@ -1,6 +1,7 @@
 import { computePixelRect } from "./grid";
 import { StudioIcon } from "./StudioIcon";
 import { renderTextWidget, renderDateWidget, renderTodoWidget, renderCalendarWidget, renderWeatherWidget, renderImageWidget } from "@ink-stack/widgets/render";
+import type { WeatherEnvelope } from "@ink-stack/widgets/weather/types";
 import type {
   CalendarConfig,
   CodexUsageConfig,
@@ -38,6 +39,7 @@ export type LibraryDropState = {
 
 interface WidgetCanvasProps {
   previewImageUrl?: string | null;
+  weatherPreview?: WeatherEnvelope | null;
   showGrid?: boolean;
   dashboard: DashboardDraft;
   selectedId: string | null;
@@ -57,6 +59,7 @@ interface WidgetCanvasProps {
 
 export function WidgetCanvas({
   previewImageUrl,
+  weatherPreview,
   showGrid = true,
   dashboard,
   selectedId,
@@ -108,6 +111,7 @@ export function WidgetCanvas({
         return (
           <WidgetCard
             previewImageUrl={previewImageUrl}
+            weatherPreview={widget.id === selectedId ? weatherPreview : null}
             key={widget.id}
             dashboard={dashboard}
             widget={widget}
@@ -144,6 +148,7 @@ function DropPreview({ dashboard, drop }: { dashboard: DashboardDraft; drop: Lib
 
 function WidgetCard({
   previewImageUrl,
+  weatherPreview,
   dashboard,
   widget,
   selected,
@@ -156,6 +161,7 @@ function WidgetCard({
   onSelect
 }: {
   previewImageUrl?: string | null;
+  weatherPreview?: WeatherEnvelope | null;
   dashboard: DashboardDraft;
   widget: WidgetInstance;
   selected: boolean;
@@ -193,14 +199,19 @@ function WidgetCard({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
-      <WidgetPreview dashboard={dashboard} widget={widget} previewImageUrl={previewImageUrl} />
+      <WidgetPreview dashboard={dashboard} widget={widget} previewImageUrl={previewImageUrl} weatherPreview={weatherPreview} />
     </button>
   );
 }
 
-function WidgetPreview({ dashboard, widget, previewImageUrl }: { dashboard: DashboardDraft; widget: WidgetInstance; previewImageUrl?: string | null }) {
+function WidgetPreview({ dashboard, widget, previewImageUrl, weatherPreview }: { dashboard: DashboardDraft; widget: WidgetInstance; previewImageUrl?: string | null; weatherPreview?: WeatherEnvelope | null }) {
   const rect = computePixelRect(dashboard.screen, dashboard.grid, widget);
   const names: Record<string, string> = { text: "文字", date: "日期", todo: "待办", "codex-usage": "Codex 额度", calendar: "日历与日程", weather: "和风天气", image: "图片相册" };
+  if (widget.type === "weather" && weatherPreview) {
+    const context = { rect, screen: dashboard.screen, timeZone: dashboard.timeZone, now: new Date().toISOString() };
+    const body = renderWeatherWidget({ instance: { ...widget, config: widget.config as WeatherConfig }, context, data: weatherPreview });
+    return <svg className="widget-svg" viewBox={`0 0 ${rect.width} ${rect.height}`} role="img" aria-label="和风天气的测试数据预览" dangerouslySetInnerHTML={{ __html: body }} />;
+  }
   if (previewImageUrl) return <div className="widget-png-crop"><img src={previewImageUrl} alt={`${names[widget.type] ?? widget.type}的服务端预览`} draggable={false} style={{ width: `${dashboard.screen.width / rect.width * 100}%`, height: `${dashboard.screen.height / rect.height * 100}%`, left: `${-rect.x / rect.width * 100}%`, top: `${-rect.y / rect.height * 100}%` }} /></div>;
   const context = { rect, screen: dashboard.screen, timeZone: dashboard.timeZone, now: new Date().toISOString() };
   let body: string;
@@ -239,5 +250,4 @@ function WidgetPreview({ dashboard, widget, previewImageUrl }: { dashboard: Dash
   // Built-in renderers escape every config string; no uploaded SVG or code is accepted.
   return <svg className="widget-svg" viewBox={`0 0 ${rect.width} ${rect.height}`} role="img" aria-label={`${names[widget.type]}的即时画面`} dangerouslySetInnerHTML={{ __html: body }} />;
 }
-
 
