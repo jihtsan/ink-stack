@@ -540,6 +540,7 @@ export default function App() {
     apiKey: ""
   });
   const [weatherTest, setWeatherTest] = useState<WeatherTestResponse | null>(null);
+  const [weatherTestWidgetId, setWeatherTestWidgetId] = useState<string | null>(null);
   const [weatherTesting, setWeatherTesting] = useState(false);
   const [imageSources, setImageSources] = useState<ImageSourcesResponse>({ sources: [] });
   const [imageSourceDraft, setImageSourceDraft] = useState({ type: "album" as ImageSource["type"], name: "我的相册", root: "" });
@@ -874,6 +875,10 @@ export default function App() {
       if (!selectedWidget) {
         return;
       }
+      if (selectedWidget.type === "weather") {
+        setWeatherTest(null);
+        setWeatherTestWidgetId(null);
+      }
       mutateDashboard(updateWidget(state.dashboard, selectedWidget.id, (widget) => ({ ...widget, config })));
     },
     [mutateDashboard, selectedWidget, state.dashboard]
@@ -1070,6 +1075,8 @@ export default function App() {
       const connection = await api.createWeatherConnection(input);
       setWeatherSources((current) => ({ connections: [...current.connections.filter((item) => item.id !== connection.id), connection] }));
       setWeatherConnectionDraft((current) => ({ ...current, apiKey: "" }));
+      setWeatherTest(null);
+      setWeatherTestWidgetId(null);
       if (selectedWidget?.type === "weather") {
         const weatherConfig = selectedWidget.config as WeatherConfig;
         mutateDashboard(
@@ -1151,6 +1158,7 @@ export default function App() {
         : { config, apiHost: weatherConnectionDraft.apiHost.trim(), authMode: weatherConnectionDraft.authMode, apiKey: weatherConnectionDraft.apiKey });
       if (seq !== weatherTestSeq.current) return;
       setWeatherTest(response);
+      setWeatherTestWidgetId(response.preview && selectedWidget?.type === "weather" ? selectedWidget.id : null);
       dispatch({
         type: "setNotice",
         notice: { kind: response.status === "fresh" ? "success" : "warning", message: response.message }
@@ -1161,7 +1169,7 @@ export default function App() {
     } finally {
       if (seq === weatherTestSeq.current) setWeatherTesting(false);
     }
-  }, [weatherConnectionDraft, weatherSources.connections]);
+  }, [selectedWidget, weatherConnectionDraft, weatherSources.connections]);
 
   const saveGoogleApp = useCallback(async () => {
     if (!googleAppDraft.clientId.trim() || !googleAppDraft.clientSecret) {
@@ -1492,6 +1500,10 @@ export default function App() {
   const draftLabel = { clean: "草稿已保存", dirty: "有未保存修改", saving: "正在保存", conflict: "草稿版本冲突" }[state.draftStatus];
   const selectWidget = (widgetId: string) => {
     dispatch({ type: "select", widgetId });
+    if (widgetId !== state.selectedId) {
+      setWeatherTest(null);
+      setWeatherTestWidgetId(null);
+    }
     setInspectorTab("properties");
     setCanvasMode("layout");
   };
@@ -1559,7 +1571,7 @@ export default function App() {
             <div className="device-frame" style={{ width: zoom === "100" ? "max-content" : `min(100%, max(260px, min(600px, calc((100dvh - 350px) * ${state.dashboard.screen.width / state.dashboard.screen.height} + 44px))))`, flexShrink: 0 }}>
               <div className="device-screen-wrap" style={zoom === "100" ? { width: state.dashboard.screen.width } : undefined}>
                 {canvasMode === "layout" ? <WidgetCanvas
-                  dashboard={state.dashboard} selectedId={state.selectedId} layoutIssues={layoutIssues} drag={drag} libraryDrop={libraryDrop} canvasRef={canvasRef} showGrid={showGrid} previewImageUrl={previewCurrent ? state.preview.url : null}
+                  dashboard={state.dashboard} selectedId={state.selectedId} layoutIssues={layoutIssues} drag={drag} libraryDrop={libraryDrop} canvasRef={canvasRef} showGrid={showGrid} previewImageUrl={previewCurrent ? state.preview.url : null} weatherPreview={weatherTestWidgetId === state.selectedId ? weatherTest?.preview : null}
                   onSelect={selectWidget}
                   onPointerDown={(event, widget) => { setInspectorTab("properties"); startDrag(event, widget); }}
                   onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={cancelDrag}
@@ -1947,7 +1959,7 @@ function ConfigInspector({
             {weatherSources.connections.map((connection) => <option key={`${connection.id}-${connection.revision}`} value={connection.id}>{connection.name} · v{connection.revision} · {connection.apiVersion}</option>)}
           </select>
         </label>
-        <p className="muted-copy">API Host 由 QWeather 控制台分配，例如 h2a9cf3mhs.xy.qweatherapi.com。连接引用只保存 ID 和修订号。</p>
+        <p className="muted-copy">API Host 由 QWeather 控制台分配，例如 h2a9cf3mhs.xy.qweatherapi.com；也可直接粘贴 https:// 地址，保存时会自动规范化。连接引用只保存 ID 和修订号。</p>
         <SectionTitle title="连接管理" />
         <label>连接名称<input value={weatherConnectionDraft.name} onChange={(event) => onWeatherConnectionDraftChange({ ...weatherConnectionDraft, name: event.currentTarget.value })} /></label>
         <label>API Host<input value={weatherConnectionDraft.apiHost} placeholder="h2a9cf3mhs.xy.qweatherapi.com" onChange={(event) => onWeatherConnectionDraftChange({ ...weatherConnectionDraft, apiHost: event.currentTarget.value })} /></label>
@@ -1959,6 +1971,7 @@ function ConfigInspector({
           <button type="button" className="primary-button" onClick={() => onTestWeatherConnection(weather)} disabled={weatherTesting}>{weatherTesting ? "测试中" : "测试当前输入"}</button>
         </div>
         {weatherTest ? <div className={`connection-status ${weatherTest.status}`}><strong>{weatherTest.message}</strong>{weatherTest.observedAt ? <span>{formatDateTime(weatherTest.observedAt)}</span> : null}{weatherTest.summary ? <small>{weatherTest.summary.location} · {weatherTest.summary.temperature}{weather.units === "m" ? "°C" : "°F"} · {weatherTest.summary.condition}{weatherTest.summary.humidity === undefined ? "" : ` · 湿度 ${Math.round(weatherTest.summary.humidity)}%`}</small> : null}</div> : <p className="muted-copy">测试会发起一次受限的 QWeather HTTPS 请求；未保存的输入只在本次请求内使用。</p>}
+        {weatherTest?.preview ? <p className="muted-copy">测试数据已临时显示在当前天气组件。{weather.connectionId ? "" : "当前连接尚未保存；保存连接后才能生成 PNG 预览并发布。"}</p> : null}
         {weatherTest?.summary?.airQuality ? <p className="muted-copy">空气质量测试：AQI {weatherTest.summary.airQuality.aqiDisplay} · {weatherTest.summary.airQuality.category}</p> : null}
         <SectionTitle title="显示项目" />
         <CheckboxInput label="温度" checked={weather.showTemperature} onChange={(showTemperature) => onChange(toJsonObject({ ...weather, showTemperature }))} />

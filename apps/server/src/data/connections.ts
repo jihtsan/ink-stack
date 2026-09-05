@@ -103,13 +103,14 @@ export class Connections {
 
   createWeather(input: WeatherConnectionInput): WeatherConnection {
     const name = input.name.trim().slice(0, 80);
-    if (!name || !validWeatherHost(input.apiHost) || !["jwt", "api-key"].includes(input.authMode) || !input.apiKey.trim() || input.apiKey.length > 8192) {
+    const apiHost = normalizeWeatherHost(input.apiHost);
+    if (!name || !apiHost || !["jwt", "api-key"].includes(input.authMode) || !input.apiKey.trim() || input.apiKey.length > 8192) {
       throw new Error("invalid_weather_connection");
     }
     const id = randomUUID();
     const credentialId = `qweather:${id}:${randomBytes(12).toString("hex")}`;
     const settings: WeatherSettings = {
-      apiHost: input.apiHost.toLowerCase(), authMode: input.authMode, apiVersion: "v1", credentialId,
+      apiHost, authMode: input.authMode, apiVersion: "v1", credentialId,
       authRevision: 1, identity: hashIdentity(id, 1, 1)
     };
     // The connection row is created before the credential so CredentialStore
@@ -204,12 +205,13 @@ export class Connections {
     if (!checked.ok) return { status: "unavailable", reason: "response" };
     const now = new Date().toISOString();
     if (!input) return (await this.readWeather(config, now, true)).envelope;
-    if (!validWeatherHost(input.apiHost) || !input.apiKey.trim() || input.apiKey.length > 8192) return { status: "unavailable", reason: "connection" };
+    const apiHost = normalizeWeatherHost(input.apiHost);
+    if (!apiHost || !input.apiKey.trim() || input.apiKey.length > 8192) return { status: "unavailable", reason: "connection" };
     const testId = "weather-test";
     const secretRef = `qweather:${testId}:${randomBytes(12).toString("hex")}`;
     const transport = this.weatherTestTransport ?? new QWeatherHttpClient((owner) => owner === testId ? input.apiKey : undefined).transport;
     const connection: QWeatherConnection = {
-      id: testId, revision: 1, type: "qweather", apiHost: input.apiHost.toLowerCase(), authMode: input.authMode,
+      id: testId, revision: 1, type: "qweather", apiHost, authMode: input.authMode,
       apiVersion: "v1", secretRef, authRevision: 1, identity: "ephemeral-test"
     };
     return (await collectWeather({ config: { ...config, connectionId: testId, connectionRevision: 1 }, connection, now, transport })).envelope;
@@ -313,6 +315,22 @@ export class Connections {
 
 function validWeatherHost(value: string): boolean {
   return /^(?:[a-z0-9]+(?:-[a-z0-9]+)*\.)+qweatherapi\.com$/i.test(value) && value.length <= 253;
+}
+
+/** Accept the bare API Host documented by QWeather and the common pasted
+ * https:// form, but persist and request only the validated hostname. */
+function normalizeWeatherHost(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" || url.username || url.password || url.port || url.pathname !== "/" || url.search || url.hash) return undefined;
+    const hostname = url.hostname.toLowerCase();
+    return validWeatherHost(hostname) ? hostname : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function parseWeatherSettings(value: string): WeatherSettings | undefined {

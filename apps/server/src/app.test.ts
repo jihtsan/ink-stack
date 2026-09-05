@@ -103,15 +103,21 @@ describe('management, rendering and delivery',()=>{
    return {days:[{forecastStartTime:`${new Date().toISOString().slice(0,10)}T00:00:00+08:00`,temperatureMin:{value:17},temperatureMax:{value:27},daytime:{condition:{text:'晴'}}}]};
   };
   const c=await setup({masterKey:Buffer.alloc(32,7),weatherTransport,weatherTestTransport:weatherTransport});
-  const created=await c.request('POST','/api/weather-connections',{name:'北京天气',apiHost:'h2a9cf3mhs.xy.qweatherapi.com',authMode:'api-key',apiKey:'WEATHER_SECRET_SENTINEL'});
-  expect(created.statusCode).toBe(201);expect(created.json()).toMatchObject({type:'qweather',revision:1,apiVersion:'v1',credentialConfigured:true});expect(JSON.stringify(created.json())).not.toContain('WEATHER_SECRET_SENTINEL');
+  const created=await c.request('POST','/api/weather-connections',{name:'北京天气',apiHost:'https://h2a9cf3mhs.xy.qweatherapi.com/',authMode:'api-key',apiKey:'WEATHER_SECRET_SENTINEL'});
+  expect(created.statusCode).toBe(201);expect(created.json()).toMatchObject({type:'qweather',revision:1,apiVersion:'v1',credentialConfigured:true,apiHost:'h2a9cf3mhs.xy.qweatherapi.com'});expect(JSON.stringify(created.json())).not.toContain('WEATHER_SECRET_SENTINEL');
+  for(const apiHost of ['http://h2a9cf3mhs.xy.qweatherapi.com','https://h2a9cf3mhs.xy.qweatherapi.com/path','https://h2a9cf3mhs.xy.qweatherapi.com/?key=not-allowed']){
+   const invalid=await c.request('POST','/api/weather-connections',{name:'无效天气',apiHost,authMode:'api-key',apiKey:'WEATHER_SECRET_SENTINEL'});
+   expect(invalid.statusCode).toBe(400);
+  }
   expect(c.db.prepare('SELECT COUNT(*) AS count FROM credentials').get()).toMatchObject({count:1});expect(JSON.stringify(c.db.prepare('SELECT * FROM credentials').get())).not.toContain('WEATHER_SECRET_SENTINEL');
   const weatherDefinition=getWidgetDefinition('weather')!;
   const savedConfig={...structuredClone(weatherDefinition.defaults),connectionId:created.json().id,connectionRevision:created.json().revision};
   const unsaved={...savedConfig,connectionId:'',connectionRevision:1};
   const beforeJobs=(c.db.prepare('SELECT COUNT(*) AS count FROM jobs').get() as {count:number}).count;
   const unsavedTest=await c.request('POST','/api/weather-connections/test',{config:unsaved,apiHost:'h2a9cf3mhs.xy.qweatherapi.com',authMode:'api-key',apiKey:'UNSAVED_SECRET_SENTINEL'});
-  expect(unsavedTest.statusCode).toBe(200);expect(unsavedTest.json()).toMatchObject({status:'fresh',summary:{location:'北京',temperature:24,condition:'晴'}});expect(JSON.stringify(unsavedTest.json())).not.toContain('UNSAVED_SECRET_SENTINEL');
+  expect(unsavedTest.statusCode).toBe(200);expect(unsavedTest.json()).toMatchObject({status:'fresh',summary:{location:'北京',temperature:24,condition:'晴'},preview:{status:'fresh',data:{location:'北京',temperature:24,condition:'晴'}}});expect(JSON.stringify(unsavedTest.json())).not.toContain('UNSAVED_SECRET_SENTINEL');
+  const pastedHostTest=await c.request('POST','/api/weather-connections/test',{config:unsaved,apiHost:'https://h2a9cf3mhs.xy.qweatherapi.com/',authMode:'api-key',apiKey:'UNSAVED_SECRET_SENTINEL'});
+  expect(pastedHostTest.statusCode).toBe(200);expect(pastedHostTest.json()).toMatchObject({status:'fresh',summary:{location:'北京',temperature:24,condition:'晴'},preview:{status:'fresh',data:{location:'北京',temperature:24,condition:'晴'}}});
   expect((c.db.prepare('SELECT COUNT(*) AS count FROM jobs').get() as {count:number}).count).toBe(beforeJobs);expect(c.connections.listWeather()).toHaveLength(1);
   const dashboard=c.service.state().draft;dashboard.widgets.push({id:'weather-live',type:'weather',configVersion:1,column:0,row:0,columnSpan:2,rowSpan:2,config:savedConfig});
   const preview=await c.request('POST','/api/dashboards/main/preview',{dashboard,editorRevision:8});expect(preview.statusCode).toBe(202);await c.service.idle();
