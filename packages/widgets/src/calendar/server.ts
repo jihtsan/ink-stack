@@ -2,6 +2,7 @@ import type { WidgetDataEnvelope } from "@ink-stack/shared";
 import { calendarRange, eventsInRange, type CalendarConfig, type CalendarEvent, type CalendarRange, type CalendarSnapshot } from "./model.js";
 
 export interface CalendarReadRequest extends CalendarRange {
+  requestedAt?: string;
   connectionId: string;
   connectionRevision: number;
   calendarIds: string[];
@@ -30,7 +31,7 @@ export async function collectCalendarData(
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const request: CalendarReadRequest = { ...calendarRange(config, context.now, context.timeZone), connectionId: config.connectionId,
+    const request: CalendarReadRequest = { ...calendarRange(config, context.now, context.timeZone), requestedAt: context.now, connectionId: config.connectionId,
       connectionRevision: config.connectionRevision, calendarIds: [...config.calendarIds], maxEvents: 100 };
     const snapshot = await Promise.race([
       adapter.read(request, controller.signal),

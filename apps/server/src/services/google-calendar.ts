@@ -142,6 +142,7 @@ export class GoogleCalendarService implements CalendarAdapter {
   }
 
   async read(request: CalendarReadRequest, signal: AbortSignal): Promise<CalendarSnapshot & { observedAt: string }> {
+    const observedAt = request.requestedAt ?? this.now().toISOString();
     const token = await this.accessToken(request.connectionId, request.connectionRevision, signal);
     const events: ReturnType<typeof normalizeGoogleEvents> = [];
     let truncated = false;
@@ -155,10 +156,8 @@ export class GoogleCalendarService implements CalendarAdapter {
       if (pages.length >= 100) truncated = true;
       if (events.length >= 500) { truncated = true; break; }
     }
-    // The calendar collector's context timestamp is captured before the
-    // adapter starts. Subtract a small bound so a successful request cannot
-    // appear to come from the future due to request latency.
-    return { source: "google", observedAt: new Date(this.now().getTime() - 1000).toISOString(), events: events.slice(0, 500), truncated };
+    // Use the collector's fixed observation time across all request pages.
+    return { source: "google", observedAt, events: events.slice(0, 500), truncated };
   }
 
   async remove(id: string, dashboards: DashboardDraft[]): Promise<void> {
