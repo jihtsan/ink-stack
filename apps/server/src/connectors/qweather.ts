@@ -31,11 +31,16 @@ export class QWeatherHttpClient {
 
   private async get(request: QWeatherRequest): Promise<unknown> {
     const url = new URL(request.url);
-    if (url.protocol !== "https:" || !isAllowedPath(url.pathname) || request.method !== "GET" || request.redirect !== "error") {
+    if (url.protocol !== "https:" || !isAllowedPath(url.pathname) || !qweatherQueryAllowed(url) || request.method !== "GET" || request.redirect !== "error") {
       throw new Error("target_not_allowed");
     }
 
-    const target = await validateTarget(url.href, [url.origin]);
+    // The generic target validator intentionally rejects query strings. Keep
+    // that invariant while validating this provider's fixed origin/path; the
+    // allowlist above still rejects arbitrary query parameters.
+    const validationUrl = new URL(url.href);
+    validationUrl.search = "";
+    const target = await validateTarget(validationUrl.href, [validationUrl.origin]);
     const secret = this.readSecret(connectionIdFromSecretRef(request.authentication.secretRef), request.authentication.secretRef);
     if (!secret) throw new Error("credential_missing");
     const authorization = request.authentication.prefix === "Bearer " ? `Bearer ${secret}` : secret;
@@ -70,8 +75,34 @@ function isAllowedPath(pathname: string): boolean {
   return pathname === "/geo/v2/city/lookup"
     || pathname === "/v7/weather/now"
     || pathname === "/v7/weather/3d"
+    || pathname === "/v7/weather/24h"
     || /^\/weather\/v1\/current\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname)
-    || /^\/weather\/v1\/daily\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname);
+    || /^\/weather\/v1\/daily\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname)
+    || /^\/weather\/v1\/hourly\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname)
+    || /^\/airquality\/v1\/current\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname);
+}
+
+/** Query names are fixed per path; values remain provider inputs, never URLs. */
+export function qweatherQueryAllowed(url: URL): boolean {
+  const allowed = url.pathname === "/geo/v2/city/lookup"
+    ? ["location", "number", "lang"]
+    : url.pathname === "/v7/weather/now" || url.pathname === "/v7/weather/3d" || url.pathname === "/v7/weather/24h"
+      ? ["location", "unit", "lang"]
+      : url.pathname.startsWith("/weather/v1/current/")
+        ? ["localTime", "lang"]
+        : url.pathname.startsWith("/weather/v1/daily/")
+          ? ["days", "localTime", "lang"]
+          : url.pathname.startsWith("/weather/v1/hourly/")
+            ? ["hours", "localTime", "lang"]
+            : url.pathname.startsWith("/airquality/v1/current/")
+              ? ["lang"]
+              : [];
+  const seen = new Set<string>();
+  for (const key of url.searchParams.keys()) {
+    if (!allowed.includes(key) || seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
 }
 
 /**

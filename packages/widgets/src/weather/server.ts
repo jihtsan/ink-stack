@@ -59,7 +59,7 @@ export function weatherCacheKey(config: WeatherConfig, connection: QWeatherConne
     "qweather-v1", connection.id, connection.revision, connection.authRevision, connection.identity,
     connection.apiHost, connection.authMode, connection.secretRef, connection.apiVersion ?? "v7", config.locationMode,
     config.locationMode === "city" ? config.city.trim() : [config.longitude, config.latitude],
-    config.units, config.showForecast
+    config.units, config.showForecast, config.forecastMode ?? "daily"
   ]);
 }
 
@@ -94,7 +94,7 @@ export async function collectWeather(options: {
   });
   async function request(path: string, params: Record<string, string>): Promise<unknown> {
     if (controller.signal.aborted) throw new WeatherFetchError("timeout");
-      const url = new URL(`https://${connection!.apiHost}${path}`);
+    const url = new URL(`https://${connection!.apiHost}${path}`);
     url.search = new URLSearchParams({ ...params, lang: "zh" }).toString();
     const response = await transport({
       url: url.href, method: "GET", redirect: "error", timeoutMs, maxResponseBytes: 262144, signal: controller.signal,
@@ -127,20 +127,41 @@ export async function collectWeather(options: {
       const current = isV1
         ? await request(`/weather/v1/current/${coordinates.latitude.toFixed(2)}/${coordinates.longitude.toFixed(2)}`, { localTime: "true" })
         : await request("/v7/weather/now", { location, unit: config.units });
-      // A failed optional forecast must not erase a valid current observation.
+      // A failed optional secondary request must not erase a valid current observation.
       let daily: unknown;
-      let forecastError: WeatherError | undefined;
+      let hourly: unknown;
+      let airQuality: unknown;
+      let secondaryError: WeatherError | undefined;
       if (config.showForecast) {
         try {
-          daily = isV1
-            ? await request(`/weather/v1/daily/${coordinates.latitude.toFixed(2)}/${coordinates.longitude.toFixed(2)}`, { days: "3", localTime: "true" })
-            : await request("/v7/weather/3d", { location, unit: config.units });
+          switch (config.forecastMode ?? "daily") {
+            case "hourly":
+              hourly = isV1
+                ? await request(`/weather/v1/hourly/${coordinates.latitude.toFixed(2)}/${coordinates.longitude.toFixed(2)}`, { hours: "12", localTime: "true" })
+                : await request("/v7/weather/24h", { location, unit: config.units });
+              break;
+            case "air-quality":
+              airQuality = await request(`/airquality/v1/current/${coordinates.latitude.toFixed(2)}/${coordinates.longitude.toFixed(2)}`, {});
+              break;
+            default:
+              daily = isV1
+                ? await request(`/weather/v1/daily/${coordinates.latitude.toFixed(2)}/${coordinates.longitude.toFixed(2)}`, { days: "3", localTime: "true" })
+                : await request("/v7/weather/3d", { location, unit: config.units });
+          }
         }
-        catch (error) { forecastError = error instanceof WeatherFetchError ? error.category : "network"; }
+        catch (error) { secondaryError = error instanceof WeatherFetchError ? error.category : "network"; }
       }
-      const normalized = normalizeWeatherSnapshot(current, daily, { location: locationName, units: config.units, apiVersion: isV1 ? "v1" : "v7", observedAtFallback: now });
+      const normalized = normalizeWeatherSnapshot(current, daily, {
+        location: locationName, units: config.units, apiVersion: isV1 ? "v1" : "v7", observedAtFallback: now, hourly, airQuality
+      });
       if (!normalized || Date.parse(normalized.observedAt) > Date.parse(now)) throw new WeatherFetchError("response");
-      if (forecastError) normalized.forecastError = forecastError;
+      if (secondaryError) {
+        switch (config.forecastMode ?? "daily") {
+          case "hourly": normalized.hourlyError = secondaryError; break;
+          case "air-quality": normalized.airQualityError = secondaryError; break;
+          default: normalized.forecastError = secondaryError;
+        }
+      }
       return normalized;
     })()]);
     const envelope = weatherEnvelope(snapshot, config, now);

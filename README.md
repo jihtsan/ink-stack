@@ -39,7 +39,7 @@ npm start
 
 ### 外部连接配置
 
-- 和风天气：在天气面板填写控制台分配的 API Host 和 API Key/JWT；服务端调用当前 v1 经纬度天气/逐日预报 API，城市名先经过 GeoAPI 唯一匹配。测试未保存输入时不会写入连接或发布配置。
+- 和风天气：在天气面板填写控制台分配的 API Host 和 API Key/JWT；服务端调用当前 v1 经纬度天气，并可按面板选择逐日、逐小时或空气质量扩展信息，城市名先经过 GeoAPI 唯一匹配。测试未保存输入时不会写入连接或发布配置。
 - Google Calendar：在日历面板保存 OAuth Web 应用 Client ID/Secret，把页面显示的精确 `/api/google/oauth/callback` 加入 Google Cloud Console，然后点击“连接 Google”。授权 token 只留在服务端。
 - 图片：平台相册写入 `data/images/albums`；服务器目录必须由管理员登记，浏览器不会读取任意服务器路径，也不支持远程 URL。
 

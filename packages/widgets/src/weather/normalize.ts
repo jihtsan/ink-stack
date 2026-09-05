@@ -1,4 +1,4 @@
-import type { WeatherConfig, WeatherEnvelope, WeatherError, WeatherSnapshot } from "./types.js";
+import type { WeatherConfig, WeatherAirQuality, WeatherEnvelope, WeatherError, WeatherHourlyForecast, WeatherSnapshot } from "./types.js";
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -23,7 +23,8 @@ export function timestamp(value: unknown): string | undefined {
 export function qweatherResponseError(value: unknown): WeatherError | undefined {
   const body = record(value);
   const code = String(body.code ?? "");
-  if (code === "200" || (!code && ("temperature" in body || "days" in body))) return undefined;
+  const hasKnownPayload = ["temperature", "days", "hours", "indexes", "location"].some((key) => key in body);
+  if (code === "200" || (!code && hasKnownPayload)) return undefined;
   if (code === "401" || code === "403") return "authentication";
   if (code === "404") return "location";
   return "response";
@@ -44,7 +45,14 @@ export function normalizeWeatherLocation(value: unknown): { id: string; name: st
 export function normalizeWeatherSnapshot(
   current: unknown,
   daily: unknown,
-  options: { location: string; units: "m" | "i"; apiVersion?: "v1" | "v7"; observedAtFallback?: string }
+  options: {
+    location: string;
+    units: "m" | "i";
+    apiVersion?: "v1" | "v7";
+    observedAtFallback?: string;
+    hourly?: unknown;
+    airQuality?: unknown;
+  }
 ): WeatherSnapshot | undefined {
   const body = record(current);
   if (qweatherResponseError(body)) return undefined;
@@ -54,33 +62,112 @@ export function normalizeWeatherSnapshot(
   const observedAt = timestamp(isV1 ? body.updateTime ?? body.observedAt ?? options.observedAtFallback : now.obsTime);
   const condition = label(isV1 ? record(now.condition).text : now.text);
   if (temperature === undefined || !observedAt || !condition) return undefined;
-  const forecastBody = record(daily);
-  const forecast: WeatherSnapshot["forecast"] = [];
-  if (!qweatherResponseError(forecastBody)) {
-    const days = isV1 ? forecastBody.days : forecastBody.daily;
-    if (Array.isArray(days)) for (const raw of days.slice(0, 3)) {
-      const day = record(raw);
-      const forecastStart = typeof day.forecastStartTime === "string" ? day.forecastStartTime : undefined;
-      const date = isV1
-        ? forecastStart && timestamp(forecastStart) ? forecastStart.slice(0, 10) : undefined
-        : typeof day.fxDate === "string" ? day.fxDate : undefined;
-      const minimum = isV1 ? v1Measurement(record(day.temperatureMin).value, options.units, "temperature") : number(day.tempMin);
-      const maximum = isV1 ? v1Measurement(record(day.temperatureMax).value, options.units, "temperature") : number(day.tempMax);
-      const conditionValue = isV1 ? record(record(day.daytime).condition).text ?? record(record(day.nighttime).condition).text : day.textDay;
-      if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)
-        || !Number.isFinite(Date.parse(date)) || minimum === undefined || maximum === undefined || minimum > maximum) continue;
-      if (forecast.some((item) => item.date === date)) continue;
-      forecast.push({ date, minimum, maximum, condition: label(conditionValue) });
-    }
-    forecast.sort((a, b) => a.date.localeCompare(b.date));
-  }
+  const forecast = normalizeDailyForecast(daily, options.units, isV1);
+  const hourlyForecast = options.hourly === undefined ? [] : normalizeWeatherHourlyForecast(options.hourly, { units: options.units, apiVersion: isV1 ? "v1" : "v7" });
+  const airQuality = options.airQuality === undefined ? undefined : normalizeWeatherAirQuality(options.airQuality);
   const feelsLike = isV1 ? v1Measurement(record(now.feelsLike).value, options.units, "temperature") : number(now.feelsLike);
   const humidity = isV1 ? percentage(now.humidity) : number(now.humidity, 0, 100);
   const windSpeed = isV1 ? v1Measurement(record(record(now.wind).speed).value, options.units, "wind") : number(now.windSpeed, 0, 1000);
   return {
     location: label(options.location), units: options.units, observedAt, temperature, condition,
     ...(feelsLike === undefined ? {} : { feelsLike }), ...(humidity === undefined ? {} : { humidity }),
-    ...(windSpeed === undefined ? {} : { windSpeed }), forecast
+    ...(windSpeed === undefined ? {} : { windSpeed }), forecast, hourlyForecast,
+    ...(airQuality === undefined ? {} : { airQuality })
+  };
+}
+
+function normalizeDailyForecast(value: unknown, units: "m" | "i", isV1: boolean): WeatherSnapshot["forecast"] {
+  const body = record(value);
+  const forecast: WeatherSnapshot["forecast"] = [];
+  if (qweatherResponseError(body)) return forecast;
+  const days = isV1 ? body.days : body.daily;
+  if (!Array.isArray(days)) return forecast;
+  for (const raw of days.slice(0, 3)) {
+    const day = record(raw);
+    const forecastStart = typeof day.forecastStartTime === "string" ? day.forecastStartTime : undefined;
+    const date = isV1
+      ? forecastStart && timestamp(forecastStart) ? forecastStart.slice(0, 10) : undefined
+      : typeof day.fxDate === "string" ? day.fxDate : undefined;
+    const minimum = isV1 ? v1Measurement(record(day.temperatureMin).value, units, "temperature") : number(day.tempMin);
+    const maximum = isV1 ? v1Measurement(record(day.temperatureMax).value, units, "temperature") : number(day.tempMax);
+    const conditionValue = isV1
+      ? record(record(day.daytime).condition).text ?? record(record(day.nighttime).condition).text
+      : day.textDay;
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      || !Number.isFinite(Date.parse(date)) || minimum === undefined || maximum === undefined || minimum > maximum) continue;
+    if (forecast.some((item) => item.date === date)) continue;
+    forecast.push({ date, minimum, maximum, condition: label(conditionValue) });
+  }
+  forecast.sort((a, b) => a.date.localeCompare(b.date));
+  return forecast;
+}
+
+export function normalizeWeatherHourlyForecast(
+  value: unknown,
+  options: { units: "m" | "i"; apiVersion?: "v1" | "v7" }
+): WeatherHourlyForecast[] {
+  const body = record(value);
+  if (qweatherResponseError(body)) return [];
+  const isV1 = options.apiVersion === "v1";
+  const rawHours = isV1 ? body.hours : body.hourly;
+  if (!Array.isArray(rawHours)) return [];
+  const hourly: WeatherHourlyForecast[] = [];
+  for (const raw of rawHours.slice(0, 24)) {
+    const hour = record(raw);
+    const time = timestamp(isV1 ? hour.forecastTime : hour.fxTime);
+    const temperature = isV1
+      ? v1Measurement(record(hour.temperature).value, options.units, "temperature")
+      : number(hour.temp);
+    const condition = label(isV1 ? record(hour.condition).text : hour.text);
+    if (!time || temperature === undefined || !condition) continue;
+    const feelsLike = isV1
+      ? v1Measurement(record(hour.feelsLike).value, options.units, "temperature")
+      : number(hour.feelsLike);
+    const humidity = isV1 ? percentage(hour.humidity) : number(hour.humidity, 0, 100);
+    const windSpeed = isV1
+      ? v1Measurement(record(record(hour.wind).speed).value, options.units, "wind")
+      : number(hour.windSpeed, 0, 1000);
+    hourly.push({
+      time, temperature, condition,
+      ...(feelsLike === undefined ? {} : { feelsLike }),
+      ...(humidity === undefined ? {} : { humidity }),
+      ...(windSpeed === undefined ? {} : { windSpeed })
+    });
+  }
+  return hourly.sort((a, b) => a.time.localeCompare(b.time));
+}
+
+export function normalizeWeatherAirQuality(value: unknown): WeatherAirQuality | undefined {
+  const body = record(value);
+  if (qweatherResponseError(body) || !Array.isArray(body.indexes)) return undefined;
+  const indexes = body.indexes.map(record);
+  const index = indexes.find((item) => item.code === "cn-mee")
+    ?? indexes.find((item) => number(item.aqi, 0, 1000) !== undefined || label(item.aqiDisplay) || label(item.category));
+  if (!index) return undefined;
+  const aqi = number(index.aqi, 0, 1000);
+  const aqiDisplay = label(index.aqiDisplay) || (aqi === undefined ? "" : String(Math.round(aqi)));
+  const category = label(index.category) || label(index.name);
+  if (!aqiDisplay && !category) return undefined;
+  const primary = record(index.primaryPollutant);
+  const primaryPollutant = label(primary.name) || label(index.primaryPollutant);
+  const pollutants = Array.isArray(body.pollutants)
+    ? body.pollutants.flatMap((raw) => {
+      const pollutant = record(raw);
+      const concentration = record(pollutant.concentration);
+      const pollutantValue = number(concentration.value ?? pollutant.value, 0, 100000);
+      const name = label(pollutant.name);
+      const code = label(pollutant.code);
+      const unit = label(concentration.unit ?? pollutant.unit);
+      return pollutantValue === undefined || !name || !/^[a-z0-9_-]{1,24}$/i.test(code) ? [] : [{ code, name, value: pollutantValue, unit }];
+    }).slice(0, 6)
+    : [];
+  return {
+    ...(aqi === undefined ? {} : { aqi }),
+    aqiDisplay: aqiDisplay || "—",
+    ...(label(index.level) ? { level: label(index.level) } : {}),
+    category: category || "未知",
+    ...(primaryPollutant ? { primaryPollutant } : {}),
+    pollutants
   };
 }
 

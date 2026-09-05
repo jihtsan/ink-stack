@@ -13,6 +13,7 @@
   "showHumidity": true,
   "showWind": false,
   "showForecast": true,
+  "forecastMode": "daily",
   "showUpdatedAt": true,
   "refreshSeconds": 900,
   "cacheTtlSeconds": 1800,

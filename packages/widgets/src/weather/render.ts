@@ -42,13 +42,45 @@ export function renderWeatherWidget(input: WidgetRenderInput<WeatherConfig, Weat
       const x = side + Math.floor(width * 0.53);
       const forecastWidth = rect.width - side - x;
       parts.push(`<path d="M ${x - side} ${scaled(37, scale)} V ${scaled(112, scale)}" stroke="#888888"/>`);
-      const today = localDate(now, timeZone);
-      const forecast = snapshot.forecast.filter((day) => day.date >= today).slice(0, 3);
-      if (forecast.length === 0) parts.push(text(snapshot.forecastError ? "预报暂不可用" : "暂无预报", x, scaled(70, scale), scaled(14, scale), forecastWidth));
-      forecast.forEach((day, index) => {
-        const date = day.date === today ? "今天" : day.date.slice(5).replace("-", "/");
-        parts.push(text(`${date} ${metric(day.minimum, "°")} / ${metric(day.maximum, "°")} ${day.condition}`, x, scaled(49 + index * 27, scale), scaled(13, scale), forecastWidth));
-      });
+      switch (config.forecastMode ?? "daily") {
+        case "hourly": {
+          parts.push(text("逐小时预报", x, scaled(48, scale), scaled(14, scale), forecastWidth, 700));
+          const hourly = (snapshot.hourlyForecast ?? []).slice(0, 6);
+          if (hourly.length === 0) {
+            parts.push(text(snapshot.hourlyError ? "逐小时预报暂不可用" : "暂无逐小时数据", x, scaled(77, scale), scaled(13, scale), forecastWidth));
+          } else {
+            hourly.forEach((hour, index) => {
+              parts.push(text(formatHour(hour.time, timeZone) + " " + metric(hour.temperature, tempUnit) + " " + hour.condition, x, scaled(70 + index * 18, scale), scaled(12, scale), forecastWidth));
+            });
+          }
+          break;
+        }
+        case "air-quality": {
+          parts.push(text("空气质量", x, scaled(48, scale), scaled(14, scale), forecastWidth, 700));
+          const airQuality = snapshot.airQuality;
+          if (!airQuality) {
+            parts.push(text(snapshot.airQualityError ? "空气质量暂不可用" : "暂无空气质量", x, scaled(78, scale), scaled(13, scale), forecastWidth));
+          } else {
+            parts.push(text("AQI " + airQuality.aqiDisplay, x, scaled(82, scale), scaled(27, scale), forecastWidth, 800));
+            const category = airQuality.level ? airQuality.category + " · " + airQuality.level : airQuality.category;
+            parts.push(text(category, x, scaled(104, scale), scaled(13, scale), forecastWidth, 700));
+            if (airQuality.primaryPollutant) parts.push(text("首要 " + airQuality.primaryPollutant, x, scaled(124, scale), scaled(12, scale), forecastWidth));
+            airQuality.pollutants.slice(0, 2).forEach((pollutant, index) => {
+              parts.push(text(pollutant.name + " " + Math.round(pollutant.value) + (pollutant.unit ? " " + pollutant.unit : ""), x, scaled(144 + index * 16, scale), scaled(11, scale), forecastWidth));
+            });
+          }
+          break;
+        }
+        default: {
+          const today = localDate(now, timeZone);
+          const forecast = (snapshot.forecast ?? []).filter((day) => day.date >= today).slice(0, 3);
+          if (forecast.length === 0) parts.push(text(snapshot.forecastError ? "预报暂不可用" : "暂无预报", x, scaled(70, scale), scaled(14, scale), forecastWidth));
+          forecast.forEach((day, index) => {
+            const date = day.date === today ? "今天" : day.date.slice(5).replace("-", "/");
+            parts.push(text(`${date} ${metric(day.minimum, "°")} / ${metric(day.maximum, "°")} ${day.condition}`, x, scaled(49 + index * 27, scale), scaled(13, scale), forecastWidth));
+          });
+        }
+      }
     }
   } else {
     parts.push(text(envelope.reason === "missing" ? "暂无天气数据" : "天气暂不可用", side, scaled(69, scale), scaled(23, scale), width, 700));
@@ -81,6 +113,11 @@ function reasonText(envelope: WeatherEnvelope): string {
 function formatTime(value: string | undefined, timeZone: string): string {
   if (!value || !Number.isFinite(Date.parse(value))) return "尚未采集";
   return new Intl.DateTimeFormat("zh-CN", { timeZone, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
+}
+
+function formatHour(value: string, timeZone: string): string {
+  if (!Number.isFinite(Date.parse(value))) return "--:--";
+  return new Intl.DateTimeFormat("zh-CN", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
 }
 
 function localDate(value: string, timeZone: string): string {

@@ -37,7 +37,7 @@ Codex 适配器只允许本机只读命令，不能从网页配置 API key、订
 
 ### QWeather
 
-天气连接使用 QWeather v1 的当前天气、逐日预报和城市查找接口；服务端只允许 HTTPS 和 QWeather 官方 API 路径，并将 API key 保存在加密凭据仓库。当前天气与逐日预报的接口形态以 [QWeather 当前天气 v1 文档](https://dev.qweather.com/docs/api/weather/weather-current/)、[逐日预报 v1 文档](https://dev.qweather.com/docs/api/weather/weather-daily-forecast/) 和 [城市查找文档](https://dev.qweather.com/docs/api/geoapi/city-lookup/) 为准。未保存的连接测试只验证输入和上游返回，不写入连接、缓存或发布任务。
+天气连接使用 QWeather v1 的当前天气、逐日预报、逐小时预报、空气质量和城市查找接口；服务端只允许 HTTPS、固定 API 路径及固定查询参数，并将 API key 保存在加密凭据仓库。接口形态以 [QWeather 当前天气 v1 文档](https://dev.qweather.com/docs/api/weather/weather-current/)、[逐日预报 v1 文档](https://dev.qweather.com/docs/api/weather/weather-daily-forecast/)、[逐小时预报 v1 文档](https://dev.qweather.com/docs/api/weather/weather-hourly-forecast/)、[空气质量实时数据文档](https://dev.qweather.com/en/docs/api/air-quality/air-current/) 和 [城市查找文档](https://dev.qweather.com/docs/api/geoapi/city-lookup/) 为准。未保存的连接测试只验证输入和上游返回，不写入连接、缓存或发布任务。
 
 部署者需要在管理页提供官方 API Host 与密钥，并确认该 Host 属于自己的 QWeather 服务配置；本地模拟 transport 和单元测试不等同于真实供应商联调。
 
