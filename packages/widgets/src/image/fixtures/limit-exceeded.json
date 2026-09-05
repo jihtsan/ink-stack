@@ -1,0 +1,28 @@
+{
+  "config": {
+    "title": "我的相册",
+    "sourceType": "album",
+    "sourceId": "unconfigured",
+    "sourceRevision": 1,
+    "recursive": false,
+    "selection": "random",
+    "fixedImageId": "",
+    "rotationSeconds": 3600,
+    "noRepeat": true,
+    "fit": "contain",
+    "grayscale": true,
+    "showTitle": true,
+    "showCaption": false,
+    "showBorder": false,
+    "padding": 8
+  },
+  "data": {
+    "status": "unavailable",
+    "observedAt": "2026-09-05T00:00:00.000Z",
+    "data": {
+      "state": "limit-exceeded",
+      "count": 0,
+      "skipped": 0
+    }
+  }
+}

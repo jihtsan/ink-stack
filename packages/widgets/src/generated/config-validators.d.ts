@@ -11,6 +11,7 @@ export interface GeneratedValidateFunction {
   errors?: GeneratedValidationError[] | null;
 }
 
+export const validateImageConfig: GeneratedValidateFunction;
 export const validateTextConfig: GeneratedValidateFunction;
 export const validateDateConfig: GeneratedValidateFunction;
 export const validateTodoConfig: GeneratedValidateFunction;

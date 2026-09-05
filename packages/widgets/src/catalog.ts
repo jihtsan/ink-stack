@@ -3,6 +3,7 @@ import type { PublicWidgetDefinition, WidgetConfigValidation } from "./types.js"
 import {
   validateCodexUsageConfig,
   validateDateConfig,
+  validateImageConfig,
   validateTextConfig,
   validateTodoConfig,
   type GeneratedValidateFunction,
@@ -22,8 +23,13 @@ import codexConfigSchema from "./codex-usage/config.schema.json" with { type: "j
 import codexConnectionSchema from "./codex-usage/connection.schema.json" with { type: "json" };
 import codexDefaults from "./codex-usage/defaults.json" with { type: "json" };
 
+import imageManifest from "./image/manifest.json" with { type: "json" };
+import imageConfigSchema from "./image/config.schema.json" with { type: "json" };
+import imageDefaults from "./image/defaults.json" with { type: "json" };
+
 export const widgetCatalog = [
   defineWidget(textManifest, textConfigSchema, textDefaults),
+  defineWidget(imageManifest, imageConfigSchema, imageDefaults),
   defineWidget(dateManifest, dateConfigSchema, dateDefaults),
   defineWidget(todoManifest, todoConfigSchema, todoDefaults),
   defineWidget(codexManifest, codexConfigSchema, codexDefaults, codexConnectionSchema)
@@ -43,6 +49,7 @@ export const minimumPixelSizeByWidgetType = new Map(
 
 const configValidators = new Map<string, GeneratedValidateFunction>([
   ["text", validateTextConfig],
+  ["image", validateImageConfig],
   ["date", validateDateConfig],
   ["todo", validateTodoConfig],
   ["codex-usage", validateCodexUsageConfig]

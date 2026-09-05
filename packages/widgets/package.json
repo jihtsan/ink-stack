@@ -6,6 +6,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./image/server": {
+      "types": "./dist/image/server.d.ts",
+      "import": "./dist/image/server.js"
+    },
     "./render": {
       "types": "./dist/render.d.ts",
       "import": "./dist/render.js"

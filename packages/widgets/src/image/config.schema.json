@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "sourceType", "sourceId", "sourceRevision", "recursive", "selection", "fixedImageId", "rotationSeconds", "noRepeat", "fit", "grayscale", "showTitle", "showCaption", "showBorder", "padding"],
+  "properties": {
+    "title": { "type": "string", "maxLength": 120, "title": "标题" },
+    "sourceType": { "type": "string", "enum": ["album", "directory"], "title": "资源类型" },
+    "sourceId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,80}$", "title": "平台资源 ID" },
+    "sourceRevision": { "type": "integer", "minimum": 1, "maximum": 2147483647, "title": "资源版本" },
+    "recursive": { "type": "boolean", "title": "扫描子目录" },
+    "selection": { "type": "string", "enum": ["random", "sequential", "fixed"], "title": "选图方式" },
+    "fixedImageId": { "type": "string", "pattern": "^(|[a-f0-9]{64})$", "title": "固定图片 ID" },
+    "rotationSeconds": { "type": "integer", "minimum": 60, "maximum": 31536000, "title": "轮换间隔（秒）" },
+    "noRepeat": { "type": "boolean", "title": "随机一轮内不重复" },
+    "fit": { "type": "string", "enum": ["contain", "cover"], "title": "完整留白或填满裁剪" },
+    "grayscale": { "type": "boolean", "title": "灰度处理" },
+    "showTitle": { "type": "boolean", "title": "显示标题" },
+    "showCaption": { "type": "boolean", "title": "显示图片名" },
+    "showBorder": { "type": "boolean", "title": "显示边框" },
+    "padding": { "type": "integer", "minimum": 0, "maximum": 40, "title": "图片留白" }
+  },
+  "allOf": [{
+    "if": { "properties": { "selection": { "const": "fixed" } } },
+    "then": { "properties": { "fixedImageId": { "type": "string", "minLength": 64 } } }
+  }]
+}

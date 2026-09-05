@@ -1,0 +1,16 @@
+{
+  "type": "image",
+  "version": "0.1.0",
+  "configVersion": 1,
+  "displayName": "图片相册",
+  "description": "从平台管理的相册或受控目录中稳定轮换图片。",
+  "category": "content",
+  "supportedSizes": [
+    { "columns": 2, "rows": 2 },
+    { "columns": 4, "rows": 2 },
+    { "columns": 4, "rows": 3 },
+    { "columns": 4, "rows": 4 }
+  ],
+  "defaultSize": { "columns": 2, "rows": 2 },
+  "minimumPixelSize": { "width": 160, "height": 120 }
+}

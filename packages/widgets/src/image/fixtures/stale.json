@@ -1,0 +1,35 @@
+{
+  "config": {
+    "title": "我的相册",
+    "sourceType": "album",
+    "sourceId": "unconfigured",
+    "sourceRevision": 1,
+    "recursive": false,
+    "selection": "random",
+    "fixedImageId": "",
+    "rotationSeconds": 3600,
+    "noRepeat": true,
+    "fit": "contain",
+    "grayscale": true,
+    "showTitle": true,
+    "showCaption": false,
+    "showBorder": false,
+    "padding": 8
+  },
+  "data": {
+    "status": "stale",
+    "observedAt": "2026-09-04T23:00:00.000Z",
+    "data": {
+      "state": "inaccessible",
+      "image": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "示例封面.png",
+        "pngDataUri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAoCAIAAADmAupWAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAcklEQVRoge3ayQkAMAwDwe2/aaUMQxjI34QclldqdbKOyu6qrA3nhHOl84bzaeWXTluaPjzCY5TWSMvR0jM8zLSUeTgAIMQjiCdMKxAv1DKYNlw6ID7OQ6yWeEvjHo5dOv7wGOKTAJjIw2Q8EmrpzxTPA4jsdDVZpnrzAAAAAElFTkSuQmCC",
+        "width": 80,
+        "height": 40
+      },
+      "count": 1,
+      "skipped": 0
+    }
+  }
+}
