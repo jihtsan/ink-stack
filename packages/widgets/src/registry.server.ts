@@ -6,12 +6,15 @@ import { renderDateWidget } from "./date/render.js";
 import { renderTodoWidget } from "./todo/render.js";
 import { renderCodexUsageWidget } from "./codex-usage/render.js";
 import { renderCalendarWidget } from "./calendar/render.js";
+import { renderImageWidget } from "./image/render.js";
+const imageManifest = getRequiredManifest("image");
 const textManifest = getRequiredManifest("text");
 const dateManifest = getRequiredManifest("date");
 const todoManifest = getRequiredManifest("todo");
 const codexManifest = getRequiredManifest("codex-usage");
 
 export const widgetServerRegistry = [
+  { manifest: imageManifest, render: asRegisteredRenderer(renderImageWidget) },
   { manifest: textManifest, render: asRegisteredRenderer(renderTextWidget) },
   { manifest: dateManifest, render: asRegisteredRenderer(renderDateWidget) },
   { manifest: todoManifest, render: asRegisteredRenderer(renderTodoWidget) },

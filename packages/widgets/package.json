@@ -10,6 +10,10 @@
       "types": "./dist/calendar/server.d.ts",
       "import": "./dist/calendar/server.js"
     },
+    "./image/server": {
+      "types": "./dist/image/server.d.ts",
+      "import": "./dist/image/server.js"
+    },
     "./render": {
       "types": "./dist/render.d.ts",
       "import": "./dist/render.js"

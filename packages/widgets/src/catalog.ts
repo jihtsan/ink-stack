@@ -4,6 +4,7 @@ import {
   validateCalendarConfig,
   validateCodexUsageConfig,
   validateDateConfig,
+  validateImageConfig,
   validateTextConfig,
   validateTodoConfig,
   type GeneratedValidateFunction,
@@ -27,8 +28,13 @@ import calendarSchema from "./calendar/config.schema.json" with { type: "json" }
 import calendarDefaults from "./calendar/defaults.json" with { type: "json" };
 import calendarConnectionSchema from "./calendar/connection.schema.json" with { type: "json" };
 
+import imageManifest from "./image/manifest.json" with { type: "json" };
+import imageConfigSchema from "./image/config.schema.json" with { type: "json" };
+import imageDefaults from "./image/defaults.json" with { type: "json" };
+
 export const widgetCatalog = [
   defineWidget(textManifest, textConfigSchema, textDefaults),
+  defineWidget(imageManifest, imageConfigSchema, imageDefaults),
   defineWidget(dateManifest, dateConfigSchema, dateDefaults),
   defineWidget(todoManifest, todoConfigSchema, todoDefaults),
   defineWidget(codexManifest, codexConfigSchema, codexDefaults, codexConnectionSchema),
@@ -49,6 +55,7 @@ export const minimumPixelSizeByWidgetType = new Map(
 
 const configValidators = new Map<string, GeneratedValidateFunction>([
   ["text", validateTextConfig],
+  ["image", validateImageConfig],
   ["date", validateDateConfig],
   ["todo", validateTodoConfig],
   ["codex-usage", validateCodexUsageConfig],
