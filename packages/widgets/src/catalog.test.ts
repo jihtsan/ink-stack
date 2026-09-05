@@ -4,9 +4,9 @@ import { renderWidgetToSvg, widgetServerRegistry } from "./registry.server.js";
 import { minimumPixelSizeByWidgetType, supportedSizesByWidgetType, validateWidgetInstanceConfig, widgetCatalog } from "./catalog.js";
 
 describe("widget catalog", () => {
-  it("contains the four first-version widgets with consistent server renderers", () => {
-    expect(widgetCatalog.map((definition) => definition.manifest.type)).toEqual(["text", "date", "todo", "codex-usage"]);
-    expect(widgetServerRegistry.map((definition) => definition.manifest.type)).toEqual(["text", "date", "todo", "codex-usage"]);
+  it("contains the built-in widgets with consistent server renderers", () => {
+    expect(widgetCatalog.map((definition) => definition.manifest.type)).toEqual(["text", "date", "todo", "codex-usage", "weather"]);
+    expect(widgetServerRegistry.map((definition) => definition.manifest.type)).toEqual(widgetCatalog.map((definition) => definition.manifest.type));
     expect(widgetCatalog.find((definition) => definition.manifest.type === "codex-usage")?.manifest.supportedSizes).toEqual([
       { columns: 2, rows: 4 }
     ]);

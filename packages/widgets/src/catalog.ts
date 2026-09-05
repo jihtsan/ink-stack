@@ -5,6 +5,7 @@ import {
   validateDateConfig,
   validateTextConfig,
   validateTodoConfig,
+  validateWeatherConfig,
   type GeneratedValidateFunction,
   type GeneratedValidationError
 } from "./generated/config-validators.js";
@@ -21,12 +22,17 @@ import codexManifest from "./codex-usage/manifest.json" with { type: "json" };
 import codexConfigSchema from "./codex-usage/config.schema.json" with { type: "json" };
 import codexConnectionSchema from "./codex-usage/connection.schema.json" with { type: "json" };
 import codexDefaults from "./codex-usage/defaults.json" with { type: "json" };
+import weatherManifest from "./weather/manifest.json" with { type: "json" };
+import weatherConfigSchema from "./weather/config.schema.json" with { type: "json" };
+import weatherConnectionSchema from "./weather/connection.schema.json" with { type: "json" };
+import weatherDefaults from "./weather/defaults.json" with { type: "json" };
 
 export const widgetCatalog = [
   defineWidget(textManifest, textConfigSchema, textDefaults),
   defineWidget(dateManifest, dateConfigSchema, dateDefaults),
   defineWidget(todoManifest, todoConfigSchema, todoDefaults),
-  defineWidget(codexManifest, codexConfigSchema, codexDefaults, codexConnectionSchema)
+  defineWidget(codexManifest, codexConfigSchema, codexDefaults, codexConnectionSchema),
+  defineWidget(weatherManifest, weatherConfigSchema, weatherDefaults, weatherConnectionSchema)
 ] as const satisfies readonly PublicWidgetDefinition[];
 
 export const widgetCatalogByType = new Map(widgetCatalog.map((definition) => [definition.manifest.type, definition]));
@@ -45,7 +51,8 @@ const configValidators = new Map<string, GeneratedValidateFunction>([
   ["text", validateTextConfig],
   ["date", validateDateConfig],
   ["todo", validateTodoConfig],
-  ["codex-usage", validateCodexUsageConfig]
+  ["codex-usage", validateCodexUsageConfig],
+  ["weather", validateWeatherConfig]
 ]);
 
 assertCatalogIsConsistent(widgetCatalog);

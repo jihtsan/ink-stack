@@ -1,0 +1,12 @@
+{
+  "type": "weather",
+  "version": "0.1.0",
+  "configVersion": 1,
+  "displayName": "和风天气",
+  "description": "当前天气与三日预报；连接及密钥由服务端管理。",
+  "category": "content",
+  "connectionType": "qweather",
+  "supportedSizes": [{ "columns": 2, "rows": 2 }, { "columns": 4, "rows": 2 }],
+  "defaultSize": { "columns": 2, "rows": 2 },
+  "minimumPixelSize": { "width": 220, "height": 180 }
+}

@@ -6,6 +6,18 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./weather/server": {
+      "types": "./dist/weather/server.d.ts",
+      "import": "./dist/weather/server.js"
+    },
+    "./weather/normalize": {
+      "types": "./dist/weather/normalize.d.ts",
+      "import": "./dist/weather/normalize.js"
+    },
+    "./weather/types": {
+      "types": "./dist/weather/types.d.ts",
+      "import": "./dist/weather/types.js"
+    },
     "./render": {
       "types": "./dist/render.d.ts",
       "import": "./dist/render.js"

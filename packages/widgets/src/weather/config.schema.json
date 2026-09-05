@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "locationMode", "city", "latitude", "longitude", "units", "connectionId", "connectionRevision", "showTemperature", "showCondition", "showFeelsLike", "showHumidity", "showWind", "showForecast", "showUpdatedAt", "refreshSeconds", "cacheTtlSeconds", "maxStaleSeconds"],
+  "properties": {
+    "title": { "type": "string", "maxLength": 60, "title": "标题" },
+    "locationMode": { "type": "string", "enum": ["city", "coordinates"], "title": "位置方式" },
+    "city": { "type": "string", "maxLength": 80, "title": "城市名或 Location ID" },
+    "latitude": { "type": "number", "minimum": -90, "maximum": 90, "title": "纬度" },
+    "longitude": { "type": "number", "minimum": -180, "maximum": 180, "title": "经度" },
+    "units": { "type": "string", "enum": ["m", "i"], "title": "单位（m 公制 / i 英制）" },
+    "connectionId": { "type": "string", "maxLength": 128 },
+    "connectionRevision": { "type": "integer", "minimum": 1 },
+    "showTemperature": { "type": "boolean", "title": "显示温度" },
+    "showCondition": { "type": "boolean", "title": "显示天气状况" },
+    "showFeelsLike": { "type": "boolean", "title": "显示体感温度" },
+    "showHumidity": { "type": "boolean", "title": "显示湿度" },
+    "showWind": { "type": "boolean", "title": "显示风速" },
+    "showForecast": { "type": "boolean", "title": "宽卡显示三日预报" },
+    "showUpdatedAt": { "type": "boolean", "title": "显示观测时间" },
+    "refreshSeconds": { "type": "integer", "minimum": 300, "maximum": 86400, "title": "采集间隔（秒）" },
+    "cacheTtlSeconds": { "type": "integer", "minimum": 300, "maximum": 86400, "title": "新鲜期限（秒）" },
+    "maxStaleSeconds": { "type": "integer", "minimum": 0, "maximum": 604800, "title": "过期后额外保留（秒）" }
+  },
+  "allOf": [{
+    "if": { "properties": { "locationMode": { "const": "city" } }, "required": ["locationMode"] },
+    "then": { "properties": { "city": { "type": "string", "pattern": "\\S" } } }
+  }]
+}

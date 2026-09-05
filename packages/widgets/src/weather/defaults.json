@@ -1,0 +1,20 @@
+{
+  "title": "天气",
+  "locationMode": "city",
+  "city": "北京",
+  "latitude": 39.9,
+  "longitude": 116.41,
+  "units": "m",
+  "connectionId": "",
+  "connectionRevision": 1,
+  "showTemperature": true,
+  "showCondition": true,
+  "showFeelsLike": false,
+  "showHumidity": true,
+  "showWind": false,
+  "showForecast": true,
+  "showUpdatedAt": true,
+  "refreshSeconds": 900,
+  "cacheTtlSeconds": 1800,
+  "maxStaleSeconds": 7200
+}
