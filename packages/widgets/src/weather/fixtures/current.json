@@ -1,0 +1,6 @@
+{
+  "code": "200",
+  "updateTime": "2026-09-05T08:00+08:00",
+  "now": { "obsTime": "2026-09-05T08:00+08:00", "temp": "26", "feelsLike": "28", "text": "晴", "humidity": "65", "windSpeed": "12" },
+  "refer": { "sources": ["QWeather"], "license": ["QWeather Developers License"] }
+}

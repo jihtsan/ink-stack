@@ -6,7 +6,7 @@ import { minimumPixelSizeByWidgetType, supportedSizesByWidgetType, validateWidge
 describe("widget catalog", () => {
   it("contains all registered widgets with consistent server renderers", () => {
     expect(widgetCatalog.map((definition) => definition.manifest.type)).toEqual([
-      "text", "image", "date", "todo", "codex-usage", "calendar"
+      "text", "image", "date", "todo", "codex-usage", "calendar", "weather"
     ]);
     expect(widgetServerRegistry.map((definition) => definition.manifest.type).sort()).toEqual(
       widgetCatalog.map((definition) => definition.manifest.type).sort()

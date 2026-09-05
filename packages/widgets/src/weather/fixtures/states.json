@@ -1,0 +1,8 @@
+[
+  { "name": "正常", "now": "2026-09-05T00:05:00Z", "status": "fresh" },
+  { "name": "过期", "now": "2026-09-05T01:00:00Z", "status": "stale" },
+  { "name": "超过保留期", "now": "2026-09-05T04:00:00Z", "status": "unavailable" },
+  { "name": "无数据", "now": "2026-09-05T00:05:00Z", "noData": true, "status": "unavailable" },
+  { "name": "认证错误", "now": "2026-09-05T00:05:00Z", "noData": true, "failure": "authentication", "status": "unauthenticated" },
+  { "name": "超时回退", "now": "2026-09-05T00:05:00Z", "failure": "timeout", "status": "stale" }
+]

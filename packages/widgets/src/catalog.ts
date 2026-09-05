@@ -7,6 +7,7 @@ import {
   validateImageConfig,
   validateTextConfig,
   validateTodoConfig,
+  validateWeatherConfig,
   type GeneratedValidateFunction,
   type GeneratedValidationError
 } from "./generated/config-validators.js";
@@ -31,6 +32,10 @@ import calendarConnectionSchema from "./calendar/connection.schema.json" with { 
 import imageManifest from "./image/manifest.json" with { type: "json" };
 import imageConfigSchema from "./image/config.schema.json" with { type: "json" };
 import imageDefaults from "./image/defaults.json" with { type: "json" };
+import weatherManifest from "./weather/manifest.json" with { type: "json" };
+import weatherConfigSchema from "./weather/config.schema.json" with { type: "json" };
+import weatherConnectionSchema from "./weather/connection.schema.json" with { type: "json" };
+import weatherDefaults from "./weather/defaults.json" with { type: "json" };
 
 export const widgetCatalog = [
   defineWidget(textManifest, textConfigSchema, textDefaults),
@@ -38,7 +43,8 @@ export const widgetCatalog = [
   defineWidget(dateManifest, dateConfigSchema, dateDefaults),
   defineWidget(todoManifest, todoConfigSchema, todoDefaults),
   defineWidget(codexManifest, codexConfigSchema, codexDefaults, codexConnectionSchema),
-  defineWidget(calendarManifest, calendarSchema, calendarDefaults, calendarConnectionSchema)
+  defineWidget(calendarManifest, calendarSchema, calendarDefaults, calendarConnectionSchema),
+  defineWidget(weatherManifest, weatherConfigSchema, weatherDefaults, weatherConnectionSchema)
 ] as const satisfies readonly PublicWidgetDefinition[];
 
 export const widgetCatalogByType = new Map(widgetCatalog.map((definition) => [definition.manifest.type, definition]));
@@ -59,7 +65,8 @@ const configValidators = new Map<string, GeneratedValidateFunction>([
   ["date", validateDateConfig],
   ["todo", validateTodoConfig],
   ["codex-usage", validateCodexUsageConfig],
-  ["calendar", validateCalendarConfig]
+  ["calendar", validateCalendarConfig],
+  ["weather", validateWeatherConfig]
 ]);
 
 assertCatalogIsConsistent(widgetCatalog);

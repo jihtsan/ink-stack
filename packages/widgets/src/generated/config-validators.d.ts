@@ -17,3 +17,4 @@ export const validateDateConfig: GeneratedValidateFunction;
 export const validateTodoConfig: GeneratedValidateFunction;
 export const validateCodexUsageConfig: GeneratedValidateFunction;
 export const validateCalendarConfig: GeneratedValidateFunction;
+export const validateWeatherConfig: GeneratedValidateFunction;

@@ -7,6 +7,7 @@ import { renderTodoWidget } from "./todo/render.js";
 import { renderCodexUsageWidget } from "./codex-usage/render.js";
 import { renderCalendarWidget } from "./calendar/render.js";
 import { renderImageWidget } from "./image/render.js";
+import { renderWeatherWidget } from "./weather/render.js";
 const imageManifest = getRequiredManifest("image");
 const textManifest = getRequiredManifest("text");
 const dateManifest = getRequiredManifest("date");
@@ -19,7 +20,8 @@ export const widgetServerRegistry = [
   { manifest: dateManifest, render: asRegisteredRenderer(renderDateWidget) },
   { manifest: todoManifest, render: asRegisteredRenderer(renderTodoWidget) },
   { manifest: codexManifest, render: asRegisteredRenderer(renderCodexUsageWidget) },
-  { manifest: getRequiredManifest("calendar"), render: asRegisteredRenderer(renderCalendarWidget) }
+  { manifest: getRequiredManifest("calendar"), render: asRegisteredRenderer(renderCalendarWidget) },
+  { manifest: getRequiredManifest("weather"), render: asRegisteredRenderer(renderWeatherWidget) }
 ] as const satisfies readonly AnyWidgetServerDefinition[];
 
 export const widgetServerRegistryByType = new Map(widgetServerRegistry.map((definition) => [definition.manifest.type, definition]));

@@ -1,0 +1,8 @@
+{
+  "code": "200",
+  "daily": [
+    { "fxDate": "2026-09-05", "tempMin": "21", "tempMax": "29", "textDay": "晴" },
+    { "fxDate": "2026-09-06", "tempMin": "20", "tempMax": "27", "textDay": "多云" },
+    { "fxDate": "2026-09-07", "tempMin": "19", "tempMax": "25", "textDay": "小雨" }
+  ]
+}

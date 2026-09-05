@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiHost", "authMode", "secretRef"],
+  "properties": {
+    "apiHost": { "type": "string", "pattern": "^(?:[a-z0-9]+(?:-[a-z0-9]+)*\\.)+qweatherapi\\.com$", "maxLength": 253, "title": "控制台 API Host（不含协议和路径）" },
+    "authMode": { "type": "string", "enum": ["jwt", "api-key"], "title": "认证方式" },
+    "secretRef": { "type": "string", "minLength": 1, "maxLength": 128, "title": "服务端秘密引用" }
+  },
+  "x-inkstack": {
+    "secretFields": [],
+    "secretReferenceFields": ["secretRef"],
+    "secretInput": { "name": "credential", "secret": true, "writeOnly": true },
+    "browserSecretReturn": false,
+    "allowedPaths": ["/geo/v2/city/lookup", "/v7/weather/now", "/v7/weather/3d"]
+  }
+}
