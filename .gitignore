@@ -35,5 +35,4 @@ Thumbs.db
 test-results/
 playwright-report/
 
-# Project Codex configuration contains local credentials
-/.codex/config.toml
+# Project Codex configuration is tracked; keep credentials in environment variables
