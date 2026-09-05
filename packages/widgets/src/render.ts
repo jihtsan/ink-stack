@@ -2,3 +2,4 @@
 export { renderTextWidget } from "./text/render.js";
 export { renderDateWidget } from "./date/render.js";
 export { renderTodoWidget } from "./todo/render.js";
+export { renderCalendarWidget } from "./calendar/render.js";

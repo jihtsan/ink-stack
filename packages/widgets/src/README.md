@@ -10,7 +10,7 @@
 | [todo](todo/README.md) | 手动待办 | 首版已实现 |
 | [codex-usage](codex-usage/README.md) | Codex 额度，2 列 × 4 行 | 首版已实现；真实读取证据见集成文档 |
 | [weather](weather/README.md) | 天气 | 后续 |
-| [calendar](calendar/README.md) | 月历与日程 | 后续 |
+| [calendar](calendar/README.md) | 月历与日程 | 绘制与适配契约已实现；真实 Google OAuth 未实现 |
 | [image](image/README.md) | 本地图片 | 后续 |
 
 当前公共入口是 `catalog.ts`，仅暴露 manifest、schema、defaults 和像素约束；服务端入口是 `registry.server.ts`，仅暴露受信任的 SVG render 函数。文件约定见 [组件开发文档](../../../docs/widgets.md)。

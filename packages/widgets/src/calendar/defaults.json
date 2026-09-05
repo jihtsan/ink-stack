@@ -1,0 +1,12 @@
+{
+  "title": "日历",
+  "layout": "month",
+  "month": "",
+  "weekStartsOn": 1,
+  "showWeekdays": true,
+  "connectionId": "",
+  "connectionRevision": 1,
+  "calendarIds": ["primary"],
+  "eventRangeDays": 7,
+  "maxVisible": 5
+}
