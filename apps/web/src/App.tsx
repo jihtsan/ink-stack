@@ -667,7 +667,7 @@ export default function App() {
             kind: "warning",
             message: requestedPlacement
               ? `当前位置无法放置 ${definition.manifest.displayName}`
-              : `没有可容纳 ${definition.manifest.displayName} 的空位`
+              : `没有可容纳 ${definition.manifest.displayName} 的空位，请删除组件或在画布设置增加行数`
           }
         });
         return;
