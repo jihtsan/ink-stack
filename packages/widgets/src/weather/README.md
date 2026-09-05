@@ -1,6 +1,6 @@
 # 和风天气组件
 
-已实现 manifest、配置与连接 schema、纯 SVG 绘制、取数适配契约、normalize、缓存状态计算及 fixtures。已注册 catalog、服务端渲染器和公共纯绘制入口。尚未接入应用的天气连接管理、实际 HTTP 传输、调度和缓存持久化；未做真实 API 或 Kindle 实机联调。
+已实现 manifest、配置与连接 schema、纯 SVG 绘制、取数适配契约、normalize、缓存状态计算及 fixtures。已注册 catalog、服务端渲染器和公共纯绘制入口。编辑器天气面板提供本地配置检查按钮；尚未接入应用的天气连接管理、实际 HTTP 传输、调度和缓存持久化，因此按钮不会发起真实 API 请求。未做真实 API 或 Kindle 实机联调。
 
 ## 配置与尺寸
 

@@ -923,6 +923,22 @@ export default function App() {
     []
   );
 
+  const testWeatherConnection = useCallback((config: WeatherConfig) => {
+    if (!config.connectionId.trim()) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请先填写和风天气服务端连接 ID" } });
+      return;
+    }
+    if (config.locationMode === "city" && !config.city.trim()) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请先填写城市或 Location ID" } });
+      return;
+    }
+    if (config.locationMode === "coordinates" && (!Number.isFinite(config.latitude) || config.latitude < -90 || config.latitude > 90 || !Number.isFinite(config.longitude) || config.longitude < -180 || config.longitude > 180)) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请填写有效的经纬度" } });
+      return;
+    }
+    dispatch({ type: "setNotice", notice: { kind: "info", message: "配置格式有效；真实天气请求需等待服务端和风传输接入" } });
+  }, []);
+
   const refreshConnection = useCallback(async (connectionId: string) => {
     const seq = connectionTestSeq.current + 1;
     connectionTestSeq.current = seq;
@@ -1309,7 +1325,7 @@ export default function App() {
           </> : <>
             <PanelHeader title="相关属性" subtitle={`${selectedDefinition.manifest.displayName} · ${selectedWidget.columnSpan} × ${selectedWidget.rowSpan}`} />
             <WidgetInspector widget={selectedWidget} definition={selectedDefinition} issue={selectedIssue?.message ?? null} onMove={moveSelected} onResize={resizeSelected} onDelete={deleteWidget} onDuplicate={duplicateWidget} />
-            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
+            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} onTestWeatherConnection={testWeatherConnection} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
           </>}
         </aside>
       </section>
@@ -1453,6 +1469,7 @@ function ConfigInspector({
   onCreateConnection,
   onRefreshConnections,
   onTestConnection,
+  onTestWeatherConnection,
   onRefreshConnection,
   connectionTest
 }: {
@@ -1465,6 +1482,7 @@ function ConfigInspector({
   onCreateConnection: () => void;
   onRefreshConnections: () => void;
   onTestConnection: (connectionId?: string, connectionRevision?: number) => void;
+  onTestWeatherConnection: (config: WeatherConfig) => void;
   onRefreshConnection: (connectionId: string) => void;
   connectionTest: CodexConnectionTestResponse | null;
 }) {
@@ -1572,7 +1590,11 @@ function ConfigInspector({
           和风连接 ID
           <input value={weather.connectionId} placeholder="服务端连接 ID" onChange={(event) => onChange(toJsonObject({ ...weather, connectionId: event.currentTarget.value }))} />
         </label>
+        <div className="split-actions">
+          <button type="button" className="ghost-button" onClick={() => onTestWeatherConnection(weather)}>测试连接</button>
+        </div>
         <p className="muted-copy">API Host、API Key 或 JWT 只保存在服务端连接中；这里仅保存连接引用。</p>
+        <p className="muted-copy">测试会先检查连接 ID 和位置配置；服务端天气传输接入后才会发起真实请求。</p>
         <SectionTitle title="显示项目" />
         <CheckboxInput label="温度" checked={weather.showTemperature} onChange={(showTemperature) => onChange(toJsonObject({ ...weather, showTemperature }))} />
         <CheckboxInput label="天气状况" checked={weather.showCondition} onChange={(showCondition) => onChange(toJsonObject({ ...weather, showCondition }))} />
