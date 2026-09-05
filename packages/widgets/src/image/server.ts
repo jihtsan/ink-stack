@@ -6,6 +6,8 @@ import type { WidgetDataEnvelope } from "@ink-stack/shared";
 import { validateWidgetInstanceConfig } from "../catalog.js";
 import { isSafeImageAsset, MAX_IMAGE_PNG_BYTES, type ImageAsset, type ImageState, type ImageWidgetConfig, type ImageWidgetData } from "./types.js";
 
+export type { ImageWidgetConfig, ImageWidgetData } from "./types.js";
+
 /** Server-owned registry entry. Never construct root from widget config or return it to a browser. */
 export interface ManagedImageSource {
   type: "album" | "directory";

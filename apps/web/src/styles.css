@@ -51,6 +51,8 @@ button { transition: background-color 120ms, border-color 120ms, box-shadow 120m
 .danger-button:hover:not(:disabled) { background: #fff2f3; }
 .selected-choice { background: #edf4fd; border-color: #9ebfe5; color: var(--primary); }
 .icon-button { width: 33px; padding: 6px; }
+.file-button { position: relative; overflow: hidden; cursor: pointer; }
+.file-button input { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; opacity: 0; }
 
 .workspace { display: grid; width: 100%; max-width: 1720px; min-height: 0; grid-template-columns: 280px minmax(320px, 1fr) 310px; gap: 16px; margin: 0 auto; padding: 16px 20px; overflow: hidden; }
 .left-panel, .right-panel, .canvas-column { min-width: 0; min-height: 0; }
@@ -252,4 +254,3 @@ textarea { min-height: 84px; resize: vertical; line-height: 1.6; }
 @media (prefers-reduced-motion: reduce) {
   button { transition: none; }
 }
-

@@ -8,15 +8,17 @@ import type { InkDatabase } from '../storage/database.js';
 import { digest } from '../auth.js';
 import { Connections } from '../data/connections.js';
 import { Renderer } from './renderer.js';
+import type { ImageManager } from './images.js';
 import type { RenderInput } from '../workers/render.worker.js';
 
 interface Row {draft:string;draft_revision:number;published:string|null;published_revision:number|null;snapshot:string|null;publication_sequence:number;display_hash:string|null;last_display_request:string|null;last_error:string|null}
 interface SnapshotRow {id:string;hash:string;config:string;revision:number;width:number;height:number;generated_at:string;data_status:string}
 interface JobRow {id:string;kind:Kind;status:string;revision:number;editor_revision:number|null;sequence:number;snapshot:string|null;error:string|null}
+interface SchedulerRow {enabled:number;cycle_seconds:number;last_attempt:string|null;last_success:string|null;last_job_id:string|null;last_error:string|null;updated_at:string}
 type Kind='preview'|'publish'|'refresh';
 interface Task {id:string;kind:Kind;dashboard:DashboardDraft;revision:number;sequence:number;editorRevision?:number}
 export class HttpError extends Error { constructor(public statusCode:number,message:string){super(message);} }
-export interface ServiceOptions {directory:string;fontPath:string;renderer?:Pick<Renderer,'render'|'close'>;dataProvider?:(d:DashboardDraft)=>Promise<Record<string,WidgetDataEnvelope>>}
+export interface ServiceOptions {directory:string;fontPath:string;renderer?:Pick<Renderer,'render'|'close'>;dataProvider?:(d:DashboardDraft)=>Promise<Record<string,WidgetDataEnvelope>>;imageManager?:ImageManager}
 
 export class DashboardService {
   private running?:Promise<void>;
@@ -31,7 +33,10 @@ export class DashboardService {
     db.prepare('INSERT OR IGNORE INTO dashboard(id,draft,draft_revision) VALUES (?,?,1)').run('main',JSON.stringify(initial));
   }
   row(){return this.db.prepare("SELECT * FROM dashboard WHERE id='main'").get() as Row;}
-  state(){const r=this.row();return {draft:JSON.parse(r.draft) as DashboardDraft,draftRevision:r.draft_revision,publishedRevision:r.published_revision,snapshot:r.snapshot?this.snapshot(r.snapshot):null,lastError:r.last_error,displayTokenConfigured:Boolean(r.display_hash),lastDisplayRequestAt:r.last_display_request};}
+  state(){const r=this.row();return {draft:JSON.parse(r.draft) as DashboardDraft,draftRevision:r.draft_revision,publishedRevision:r.published_revision,snapshot:r.snapshot?this.snapshot(r.snapshot):null,lastError:r.last_error,displayTokenConfigured:Boolean(r.display_hash),lastDisplayRequestAt:r.last_display_request,schedule:this.scheduleState()};}
+  scheduleState(){const row=this.db.prepare('SELECT enabled,cycle_seconds,last_attempt,last_success,last_job_id,last_error,updated_at FROM scheduler_state WHERE id=1').get() as SchedulerRow;return {enabled:Boolean(row.enabled),cycleSeconds:row.cycle_seconds,lastAttemptAt:row.last_attempt,lastSuccessAt:row.last_success,lastJobId:row.last_job_id,lastError:row.last_error,updatedAt:row.updated_at};}
+  setSchedule(input:{enabled:boolean;cycleSeconds:number}){if(typeof input.enabled!=='boolean'||!Number.isInteger(input.cycleSeconds)||input.cycleSeconds<60||input.cycleSeconds>86400)throw new HttpError(400,'invalid_schedule');this.db.prepare('UPDATE scheduler_state SET enabled=?,cycle_seconds=?,updated_at=? WHERE id=1').run(input.enabled?1:0,input.cycleSeconds,new Date().toISOString());return this.scheduleState();}
+  schedulerTick(){const schedule=this.scheduleState();if(!schedule.enabled)return null;const now=Date.now();const last=schedule.lastAttemptAt?Date.parse(schedule.lastAttemptAt):NaN;if(Number.isFinite(last)&&now-last<schedule.cycleSeconds*1000)return null;const attempted=new Date(now).toISOString();this.db.prepare('UPDATE scheduler_state SET last_attempt=?,last_error=NULL,updated_at=? WHERE id=1').run(attempted,attempted);const job=this.enqueue('refresh');if(job)this.db.prepare('UPDATE scheduler_state SET last_job_id=?,updated_at=? WHERE id=1').run(job.id,attempted);return job;}
   snapshot(id:string){const s=this.db.prepare('SELECT * FROM snapshots WHERE id=?').get(id) as SnapshotRow|undefined;return s?{id:s.id,url:`/api/snapshots/${s.id}.png`,hash:s.hash,width:s.width,height:s.height,generatedAt:s.generated_at,revision:s.revision,dataStatus:JSON.parse(s.data_status)}:null;}
   validate(value:unknown):asserts value is DashboardDraft {
     const schema=validateDashboardDraft(value,{supportedSizesByType:supportedSizesByWidgetType,minimumPixelSizeByType:minimumPixelSizeByWidgetType});
@@ -42,6 +47,7 @@ export class DashboardService {
     if(!result.ok) throw new HttpError(400,result.issues[0]!.code);
     for(const w of d.widgets) if(!validateWidgetInstanceConfig(w).ok) throw new HttpError(400,'invalid_widget_config');
     try {this.connections.validate(d);} catch {throw new HttpError(400,'connection_reference_invalid');}
+    try {this.options.imageManager?.validate(d);} catch {throw new HttpError(400,'image_source_reference_invalid');}
   }
   save(value:unknown,baseRevision:number){
     this.validate(value);
@@ -77,7 +83,7 @@ export class DashboardService {
     this.kick();
     return this.job(task.id);
   }
-  job(id:string){const j=this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id) as JobRow|undefined;if(!j)throw new HttpError(404,'job_not_found');return {id:j.id,kind:j.kind,revision:j.revision,status:j.status,editorRevision:j.editor_revision,error:j.error,previewUrl:j.kind==='preview'&&j.status==='succeeded'?`/api/previews/${j.id}.png`:undefined};}
+  job(id:string){const j=this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id) as JobRow|undefined;if(!j)throw new HttpError(404,'job_not_found');return {id:j.id,kind:j.kind,revision:j.revision,status:j.status,editorRevision:j.editor_revision,error:j.error,previewUrl:j.status==='succeeded'?(j.kind==='preview'?`/api/previews/${j.id}.png`:j.snapshot?`/api/snapshots/${j.snapshot}.png`:undefined):undefined};}
   private kick(){if(!this.running)this.running=this.drain().finally(()=>{this.running=undefined;if(this.queue.length)this.kick();});}
   private async drain(){while(this.queue.length&&!this.closing){const task=this.queue.shift()!;await this.execute(task);}}
   private async execute(task:Task){
@@ -98,11 +104,13 @@ export class DashboardService {
         this.db.prepare('INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?)').run(task.id,hash,JSON.stringify(task.dashboard),task.revision,meta.width,meta.height,now,JSON.stringify(Object.fromEntries(Object.entries(data).map(([id,d])=>[id,{status:d.status,observedAt:d.observedAt}]))));
         this.db.prepare("UPDATE jobs SET status='succeeded',snapshot=? WHERE id=?").run(task.id,task.id);
         if(task.kind!=='preview')this.db.prepare("UPDATE dashboard SET published=?,published_revision=?,snapshot=?,last_error=NULL WHERE id='main'").run(JSON.stringify(task.dashboard),task.revision,task.id);
+        if(task.kind==='refresh')this.db.prepare("UPDATE scheduler_state SET last_success=?,last_error=NULL,updated_at=? WHERE id=1").run(now,now);
       })();
     } catch {
       this.db.prepare("UPDATE jobs SET status='failed',error='render_or_data_failed' WHERE id=?").run(task.id);
       const r=this.row();
       if(task.kind!=='preview'&&r.publication_sequence===task.sequence)this.db.prepare("UPDATE dashboard SET last_error='render_or_data_failed' WHERE id='main'").run();
+      if(task.kind==='refresh')this.db.prepare("UPDATE scheduler_state SET last_error='render_or_data_failed',updated_at=? WHERE id=1").run(new Date().toISOString());
     }
   }
   imagePath(hash:string){return join(this.options.directory,'images',`${hash}.png`);}

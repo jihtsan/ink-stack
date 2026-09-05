@@ -108,6 +108,39 @@ describe("server collection", () => {
     expect(url.searchParams.get("location")).toBe("116.42,39.92");
     expect(url.searchParams.get("unit")).toBe("i");
   });
+  it("uses the current v1 coordinate endpoints and converts metric measurements", async () => {
+    const v1Current = {
+      condition: { text: "少云" },
+      temperature: { value: 20 },
+      feelsLike: { value: 19 },
+      humidity: 0.69,
+      wind: { speed: { value: 4.74 } }
+    };
+    const v1Daily = {
+      days: [{
+        forecastStartTime: "2026-09-05T00:00Z",
+        temperatureMin: { value: 18 },
+        temperatureMax: { value: 25 },
+        daytime: { condition: { text: "晴" } }
+      }]
+    };
+    const transport = vi.fn<QWeatherTransport>(async ({ url }) => url.includes("/daily/") ? v1Daily : v1Current);
+    const result = await collectWeather({
+      config: { ...config, locationMode: "coordinates", city: "", latitude: 39.924, longitude: 116.415, units: "i", showForecast: true },
+      connection: { ...connection, apiVersion: "v1" }, now, transport
+    });
+    expect(result.envelope.status).toBe("fresh");
+    expect(result.envelope.data?.temperature).toBeCloseTo(68);
+    expect(result.envelope.data?.feelsLike).toBeCloseTo(66.2);
+    expect(result.envelope.data?.windSpeed).toBeCloseTo(10.6, 1);
+    expect(result.envelope.data?.humidity).toBe(69);
+    expect(result.envelope.data?.forecast[0]?.date).toBe("2026-09-05");
+    expect(transport).toHaveBeenCalledTimes(2);
+    const urls = transport.mock.calls.map(([request]) => new URL(request.url));
+    expect(urls[0]!.pathname).toBe("/weather/v1/current/39.92/116.42");
+    expect(urls[1]!.pathname).toBe("/weather/v1/daily/39.92/116.42");
+    expect(urls.every((url) => url.searchParams.get("localTime") === "true")).toBe(true);
+  });
   it("reuses fresh cache within refresh interval; rotation and location/unit changes isolate it", async () => {
     const transport = makeTransport();
     const first = await collectWeather({ config, connection, now, transport });

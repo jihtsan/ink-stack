@@ -21,53 +21,79 @@ export function timestamp(value: unknown): string | undefined {
 }
 
 export function qweatherResponseError(value: unknown): WeatherError | undefined {
-  const code = String(record(value).code ?? "");
-  if (code === "200") return undefined;
+  const body = record(value);
+  const code = String(body.code ?? "");
+  if (code === "200" || (!code && ("temperature" in body || "days" in body))) return undefined;
   if (code === "401" || code === "403") return "authentication";
   if (code === "404") return "location";
   return "response";
 }
 
 /** Choose only an unambiguous location. Never silently select the first same-name city. */
-export function normalizeWeatherLocation(value: unknown): { id: string; name: string } | undefined {
+export function normalizeWeatherLocation(value: unknown): { id: string; name: string; latitude?: number; longitude?: number } | undefined {
   const body = record(value);
   if (qweatherResponseError(body) || !Array.isArray(body.location) || body.location.length !== 1) return undefined;
   const item = record(body.location[0]);
+  const latitude = number(item.lat, -90, 90);
+  const longitude = number(item.lon, -180, 180);
   return typeof item.id === "string" && /^[a-zA-Z0-9_-]{1,40}$/.test(item.id) && label(item.name)
-    ? { id: item.id, name: label(item.name) } : undefined;
+    ? { id: item.id, name: label(item.name), ...(latitude === undefined ? {} : { latitude }), ...(longitude === undefined ? {} : { longitude }) } : undefined;
 }
 
 /** Select known fields, preserve missing values, and reject incomplete current observations. */
 export function normalizeWeatherSnapshot(
   current: unknown,
   daily: unknown,
-  options: { location: string; units: "m" | "i" }
+  options: { location: string; units: "m" | "i"; apiVersion?: "v1" | "v7"; observedAtFallback?: string }
 ): WeatherSnapshot | undefined {
   const body = record(current);
   if (qweatherResponseError(body)) return undefined;
-  const now = record(body.now);
-  const temperature = number(now.temp);
-  const observedAt = timestamp(now.obsTime);
-  const condition = label(now.text);
+  const isV1 = options.apiVersion === "v1";
+  const now = isV1 ? record(body) : record(body.now);
+  const temperature = isV1 ? v1Measurement(record(now.temperature).value, options.units, "temperature") : number(now.temp);
+  const observedAt = timestamp(isV1 ? body.updateTime ?? body.observedAt ?? options.observedAtFallback : now.obsTime);
+  const condition = label(isV1 ? record(now.condition).text : now.text);
   if (temperature === undefined || !observedAt || !condition) return undefined;
   const forecastBody = record(daily);
   const forecast: WeatherSnapshot["forecast"] = [];
-  if (!qweatherResponseError(forecastBody) && Array.isArray(forecastBody.daily)) {
-    for (const raw of forecastBody.daily.slice(0, 3)) {
+  if (!qweatherResponseError(forecastBody)) {
+    const days = isV1 ? forecastBody.days : forecastBody.daily;
+    if (Array.isArray(days)) for (const raw of days.slice(0, 3)) {
       const day = record(raw);
-      const minimum = number(day.tempMin);
-      const maximum = number(day.tempMax);
-      if (typeof day.fxDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day.fxDate)
-        || !Number.isFinite(Date.parse(day.fxDate)) || minimum === undefined || maximum === undefined || minimum > maximum) continue;
-      if (forecast.some((item) => item.date === day.fxDate)) continue;
-      forecast.push({ date: day.fxDate, minimum, maximum, condition: label(day.textDay) });
+      const forecastStart = typeof day.forecastStartTime === "string" ? day.forecastStartTime : undefined;
+      const date = isV1
+        ? forecastStart && timestamp(forecastStart) ? forecastStart.slice(0, 10) : undefined
+        : typeof day.fxDate === "string" ? day.fxDate : undefined;
+      const minimum = isV1 ? v1Measurement(record(day.temperatureMin).value, options.units, "temperature") : number(day.tempMin);
+      const maximum = isV1 ? v1Measurement(record(day.temperatureMax).value, options.units, "temperature") : number(day.tempMax);
+      const conditionValue = isV1 ? record(record(day.daytime).condition).text ?? record(record(day.nighttime).condition).text : day.textDay;
+      if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+        || !Number.isFinite(Date.parse(date)) || minimum === undefined || maximum === undefined || minimum > maximum) continue;
+      if (forecast.some((item) => item.date === date)) continue;
+      forecast.push({ date, minimum, maximum, condition: label(conditionValue) });
     }
     forecast.sort((a, b) => a.date.localeCompare(b.date));
   }
+  const feelsLike = isV1 ? v1Measurement(record(now.feelsLike).value, options.units, "temperature") : number(now.feelsLike);
+  const humidity = isV1 ? percentage(now.humidity) : number(now.humidity, 0, 100);
+  const windSpeed = isV1 ? v1Measurement(record(record(now.wind).speed).value, options.units, "wind") : number(now.windSpeed, 0, 1000);
   return {
     location: label(options.location), units: options.units, observedAt, temperature, condition,
-    feelsLike: number(now.feelsLike), humidity: number(now.humidity, 0, 100), windSpeed: number(now.windSpeed, 0, 1000), forecast
+    ...(feelsLike === undefined ? {} : { feelsLike }), ...(humidity === undefined ? {} : { humidity }),
+    ...(windSpeed === undefined ? {} : { windSpeed }), forecast
   };
+}
+
+function percentage(value: unknown): number | undefined {
+  const parsed = number(value, 0, 1);
+  return parsed === undefined ? undefined : parsed * 100;
+}
+
+function v1Measurement(value: unknown, units: "m" | "i", kind: "temperature" | "wind"): number | undefined {
+  const parsed = number(value, kind === "temperature" ? -200 : 0, kind === "temperature" ? 200 : 1000);
+  if (parsed === undefined) return undefined;
+  if (units === "m") return parsed;
+  return kind === "temperature" ? parsed * 9 / 5 + 32 : parsed * 2.2369362921;
 }
 
 /** Ages are measured from observation time, never from the latest failed fetch. */

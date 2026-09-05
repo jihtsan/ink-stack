@@ -5,6 +5,10 @@ export type SecretUpdate = { action: 'keep' } | { action: 'clear' } | { action: 
 /** Credential ownership is authenticated as additional data; plaintext never leaves the data layer. */
 export class CredentialStore {
   constructor(private db: InkDatabase, private key: Buffer | undefined, private invalidate: (connection: string) => void) {}
+  has(connection: string, id: string): boolean {
+    const row = this.db.prepare('SELECT ciphertext FROM credentials WHERE id=? AND connection_id=?').get(id, connection) as { ciphertext: string } | undefined;
+    return Boolean(row?.ciphertext);
+  }
   write(connection: string, id: string, update: SecretUpdate): { configured: boolean; revision: number } {
     const row = this.db.prepare('SELECT * FROM credentials WHERE id=?').get(id) as { connection_id: string; revision: number; ciphertext: string } | undefined;
     if (row && row.connection_id !== connection) throw new Error('credential_ownership');

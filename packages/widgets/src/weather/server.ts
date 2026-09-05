@@ -10,6 +10,8 @@ export interface QWeatherConnection {
   apiHost: string;
   authMode: "jwt" | "api-key";
   secretRef: string;
+  /** New v1 coordinates API. Missing means the legacy v7 fixture contract. */
+  apiVersion?: "v1" | "v7";
   /** Both must change/invalidate caches when credentials or provider identity change. */
   authRevision: number;
   identity: string;
@@ -48,13 +50,14 @@ export function validQWeatherConnection(connection: QWeatherConnection): boolean
     && ["jwt", "api-key"].includes(connection.authMode)
     && typeof connection.secretRef === "string" && connection.secretRef.trim().length > 0
     && typeof connection.identity === "string" && connection.identity.trim().length > 0
+    && (connection.apiVersion === undefined || ["v1", "v7"].includes(connection.apiVersion))
     && Number.isInteger(connection.authRevision) && connection.authRevision >= 1;
 }
 
 export function weatherCacheKey(config: WeatherConfig, connection: QWeatherConnection): string {
   return JSON.stringify([
     "qweather-v1", connection.id, connection.revision, connection.authRevision, connection.identity,
-    connection.apiHost, connection.authMode, connection.secretRef, config.locationMode,
+    connection.apiHost, connection.authMode, connection.secretRef, connection.apiVersion ?? "v7", config.locationMode,
     config.locationMode === "city" ? config.city.trim() : [config.longitude, config.latitude],
     config.units, config.showForecast
   ]);
@@ -91,7 +94,7 @@ export async function collectWeather(options: {
   });
   async function request(path: string, params: Record<string, string>): Promise<unknown> {
     if (controller.signal.aborted) throw new WeatherFetchError("timeout");
-    const url = new URL(`https://${connection!.apiHost}${path}`);
+      const url = new URL(`https://${connection!.apiHost}${path}`);
     url.search = new URLSearchParams({ ...params, lang: "zh" }).toString();
     const response = await transport({
       url: url.href, method: "GET", redirect: "error", timeoutMs, maxResponseBytes: 262144, signal: controller.signal,
@@ -110,21 +113,32 @@ export async function collectWeather(options: {
     const snapshot = await Promise.race([deadline, (async () => {
       let location = `${config.longitude.toFixed(2)},${config.latitude.toFixed(2)}`;
       let locationName = location;
+      let coordinates = { latitude: config.latitude, longitude: config.longitude };
       if (config.locationMode === "city") {
         const result = normalizeWeatherLocation(await request("/geo/v2/city/lookup", { location: config.city.trim(), number: "20" }));
         if (!result) throw new WeatherFetchError("location");
         location = result.id;
         locationName = result.name;
+        if (result.latitude !== undefined && result.longitude !== undefined) {
+          coordinates = { latitude: result.latitude, longitude: result.longitude };
+        }
       }
-      const current = await request("/v7/weather/now", { location, unit: config.units });
+      const isV1 = connection.apiVersion === "v1";
+      const current = isV1
+        ? await request(`/weather/v1/current/${coordinates.latitude.toFixed(2)}/${coordinates.longitude.toFixed(2)}`, { localTime: "true" })
+        : await request("/v7/weather/now", { location, unit: config.units });
       // A failed optional forecast must not erase a valid current observation.
       let daily: unknown;
       let forecastError: WeatherError | undefined;
       if (config.showForecast) {
-        try { daily = await request("/v7/weather/3d", { location, unit: config.units }); }
+        try {
+          daily = isV1
+            ? await request(`/weather/v1/daily/${coordinates.latitude.toFixed(2)}/${coordinates.longitude.toFixed(2)}`, { days: "3", localTime: "true" })
+            : await request("/v7/weather/3d", { location, unit: config.units });
+        }
         catch (error) { forecastError = error instanceof WeatherFetchError ? error.category : "network"; }
       }
-      const normalized = normalizeWeatherSnapshot(current, daily, { location: locationName, units: config.units });
+      const normalized = normalizeWeatherSnapshot(current, daily, { location: locationName, units: config.units, apiVersion: isV1 ? "v1" : "v7", observedAtFallback: now });
       if (!normalized || Date.parse(normalized.observedAt) > Date.parse(now)) throw new WeatherFetchError("response");
       if (forecastError) normalized.forecastError = forecastError;
       return normalized;

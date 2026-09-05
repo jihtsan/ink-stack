@@ -93,6 +93,76 @@ describe('management, rendering and delivery',()=>{
   expect((await c.request('POST','/api/data-sources/test',{connectionId:'missing'})).statusCode).toBe(400);
   const tested=await c.request('POST','/api/data-sources/test',{});expect(tested.json().status).toBe('not_logged_in');
  });
+ it('keeps weather secrets server-side, tests unsaved input, and feeds saved v1 data into preview jobs',async()=>{
+  const observed=()=>new Date(Date.now()-1000).toISOString();
+  const weatherTransport=async({url}:{url:string})=>{
+   if(url.includes('/geo/'))return {code:'200',location:[{id:'101010100',name:'北京',lat:'39.90',lon:'116.40'}]};
+   if(url.includes('/current/'))return {updateTime:observed(),temperature:{value:24},feelsLike:{value:23},humidity:0.42,wind:{speed:{value:2.4}},condition:{text:'晴'}};
+   return {days:[{forecastStartTime:`${new Date().toISOString().slice(0,10)}T00:00:00+08:00`,temperatureMin:{value:17},temperatureMax:{value:27},daytime:{condition:{text:'晴'}}}]};
+  };
+  const c=await setup({masterKey:Buffer.alloc(32,7),weatherTransport,weatherTestTransport:weatherTransport});
+  const created=await c.request('POST','/api/weather-connections',{name:'北京天气',apiHost:'h2a9cf3mhs.xy.qweatherapi.com',authMode:'api-key',apiKey:'WEATHER_SECRET_SENTINEL'});
+  expect(created.statusCode).toBe(201);expect(created.json()).toMatchObject({type:'qweather',revision:1,apiVersion:'v1',credentialConfigured:true});expect(JSON.stringify(created.json())).not.toContain('WEATHER_SECRET_SENTINEL');
+  expect(c.db.prepare('SELECT COUNT(*) AS count FROM credentials').get()).toMatchObject({count:1});expect(JSON.stringify(c.db.prepare('SELECT * FROM credentials').get())).not.toContain('WEATHER_SECRET_SENTINEL');
+  const weatherDefinition=getWidgetDefinition('weather')!;
+  const savedConfig={...structuredClone(weatherDefinition.defaults),connectionId:created.json().id,connectionRevision:created.json().revision};
+  const unsaved={...savedConfig,connectionId:'',connectionRevision:1};
+  const beforeJobs=(c.db.prepare('SELECT COUNT(*) AS count FROM jobs').get() as {count:number}).count;
+  const unsavedTest=await c.request('POST','/api/weather-connections/test',{config:unsaved,apiHost:'h2a9cf3mhs.xy.qweatherapi.com',authMode:'api-key',apiKey:'UNSAVED_SECRET_SENTINEL'});
+  expect(unsavedTest.statusCode).toBe(200);expect(unsavedTest.json()).toMatchObject({status:'fresh',summary:{location:'北京',temperature:24,condition:'晴'}});expect(JSON.stringify(unsavedTest.json())).not.toContain('UNSAVED_SECRET_SENTINEL');
+  expect((c.db.prepare('SELECT COUNT(*) AS count FROM jobs').get() as {count:number}).count).toBe(beforeJobs);expect(c.connections.listWeather()).toHaveLength(1);
+  const dashboard=c.service.state().draft;dashboard.widgets.push({id:'weather-live',type:'weather',configVersion:1,column:0,row:0,columnSpan:2,rowSpan:2,config:savedConfig});
+  const preview=await c.request('POST','/api/dashboards/main/preview',{dashboard,editorRevision:8});expect(preview.statusCode).toBe(202);await c.service.idle();
+  expect(c.service.job(preview.json().id)).toMatchObject({status:'succeeded'});
+  const status=c.db.prepare('SELECT data_status FROM snapshots WHERE id=?').get(preview.json().id) as {data_status:string};expect(JSON.parse(status.data_status)).toMatchObject({'weather-live':{status:'fresh'}});
+ });
+ it('manages uploaded albums without exposing roots and protects image references',async()=>{
+  const c=await setup();
+  const created=await c.request('POST','/api/image-sources',{type:'album',name:'旅行相册'});expect(created.statusCode).toBe(201);expect(created.json()).toMatchObject({type:'album',revision:1,configured:true});expect(JSON.stringify(created.json())).not.toContain(c.directory);
+  const png=await sharp({create:{width:32,height:20,channels:3,background:'white'}}).png().toBuffer();
+  const upload=await c.app.inject({method:'POST',url:`/api/image-sources/${created.json().id}/uploads`,headers:{origin,cookie:'', 'content-type':'image/png','x-inkstack-filename':'日出.png'},payload:png});
+  // The request helper's authenticated cookie is intentionally not reused in
+  // the raw upload call above; verify the protected endpoint before retrying.
+  expect(upload.statusCode).toBe(401);
+  const login=await c.app.inject({method:'POST',url:'/api/session',headers:{origin},payload:{password}});const cookie=login.headers['set-cookie']!.toString().split(';')[0]!;
+  const authenticated=await c.app.inject({method:'POST',url:`/api/image-sources/${created.json().id}/uploads`,headers:{origin,cookie,'content-type':'image/png','x-inkstack-filename':'日出.png'},payload:png});
+  expect(authenticated.statusCode).toBe(201);
+  const images=await c.request('GET',`/api/image-sources/${created.json().id}/images?revision=1&recursive=true`);
+  expect(images.statusCode).toBe(200);expect(images.json().images).toMatchObject([{name:'日出.png',width:32,height:20}]);expect(JSON.stringify(images.json())).not.toContain(c.directory);
+  const imageDefinition=getWidgetDefinition('image')!;const dashboard=c.service.state().draft;dashboard.widgets.push({id:'image-live',type:'image',configVersion:1,column:0,row:0,columnSpan:2,rowSpan:2,config:{...structuredClone(imageDefinition.defaults),sourceType:'album',sourceId:created.json().id,sourceRevision:1,selection:'sequential'}});
+  const preview=await c.request('POST','/api/dashboards/main/preview',{dashboard,editorRevision:9});expect(preview.statusCode).toBe(202);await c.service.idle();expect(c.service.job(preview.json().id)).toMatchObject({status:'succeeded'});
+  const dataStatus=c.db.prepare('SELECT data_status FROM snapshots WHERE id=?').get(preview.json().id) as {data_status:string};expect(JSON.parse(dataStatus.data_status)).toMatchObject({'image-live':{status:'fresh'}});
+  expect((await c.request('DELETE',`/api/image-sources/${created.json().id}`)).statusCode).toBe(409);
+ });
+ it('binds Google OAuth state to the admin session, stores tokens encrypted, and reads selected calendars',async()=>{
+  const calls:{url:string;headers?:Record<string,string>;body?:string}[]=[];
+  const googleHttp=async(request:{url:string;method:'GET'|'POST';headers?:Record<string,string>;body?:string;signal:AbortSignal})=>{
+   calls.push({url:request.url,headers:request.headers,body:request.body});
+   if(request.url==='https://oauth2.googleapis.com/token')return {status:200,body:{access_token:'ACCESS_TOKEN_SENTINEL',refresh_token:'REFRESH_TOKEN_SENTINEL',expires_in:3600,scope:'https://www.googleapis.com/auth/calendar.readonly'}};
+   if(request.url==='https://oauth2.googleapis.com/revoke')return {status:200,body:{}};
+   if(request.url.includes('/calendarList'))return {status:200,body:{items:[{id:'primary',summary:'我的日历',primary:true,timeZone:'Asia/Shanghai'}]}};
+   return {status:200,body:{items:[{id:'event-1',summary:'中文会议',start:{dateTime:'2026-09-05T10:00:00+08:00'},end:{dateTime:'2026-09-05T11:00:00+08:00'}}]}};
+  };
+  const c=await setup({masterKey:Buffer.alloc(32,8),googleHttp});
+  const appConfig=await c.request('PUT','/api/google/app',{clientId:'1234567890.apps.googleusercontent.com',clientSecret:'GOOGLE_CLIENT_SECRET_SENTINEL'});expect(appConfig.statusCode).toBe(200);expect(appConfig.json()).toMatchObject({configured:true});expect(JSON.stringify(appConfig.json())).not.toContain('GOOGLE_CLIENT_SECRET_SENTINEL');
+  const start=await c.request('GET','/api/google/oauth/start');expect(start.statusCode).toBe(200);const authorization=new URL(start.json().url);expect(authorization.origin).toBe('https://accounts.google.com');expect(authorization.searchParams.get('access_type')).toBe('offline');expect(authorization.searchParams.get('response_type')).toBe('code');expect(authorization.searchParams.get('scope')).toContain('calendar.readonly');
+  const callback=await c.request('GET',`/api/google/oauth/callback?state=${encodeURIComponent(authorization.searchParams.get('state')!)}&code=AUTHORIZATION_CODE`);expect(callback.statusCode).toBe(302);expect(callback.headers.location).toBe('/?google=connected');
+  const status=await c.request('GET','/api/google/status');expect(status.json().connections).toMatchObject([{type:'google-calendar-oauth',revision:1,configured:true}]);expect(JSON.stringify(status.json())).not.toMatch(/ACCESS_TOKEN|REFRESH_TOKEN|CLIENT_SECRET/);
+  const connection=status.json().connections[0];const calendars=await c.request('GET',`/api/google/connections/${connection.id}/calendars?revision=${connection.revision}`);expect(calendars.json()).toEqual({calendars:[{id:'primary',summary:'我的日历',primary:true,timeZone:'Asia/Shanghai'}]});
+  const calendarDefinition=getWidgetDefinition('calendar')!;const dashboard=c.service.state().draft;dashboard.widgets.push({id:'calendar-live',type:'calendar',configVersion:1,column:0,row:0,columnSpan:4,rowSpan:3,config:{...structuredClone(calendarDefinition.defaults),connectionId:connection.id,connectionRevision:connection.revision,calendarIds:['primary']}});
+  const preview=await c.request('POST','/api/dashboards/main/preview',{dashboard,editorRevision:10});expect(preview.statusCode).toBe(202);await c.service.idle();expect(c.service.job(preview.json().id)).toMatchObject({status:'succeeded'});const dataStatus=c.db.prepare('SELECT data_status FROM snapshots WHERE id=?').get(preview.json().id) as {data_status:string};expect(JSON.parse(dataStatus.data_status)).toMatchObject({'calendar-live':{status:'fresh'}});
+  expect(calls.some((call)=>call.url.includes('/events?')&&call.headers?.authorization==='Bearer ACCESS_TOKEN_SENTINEL')).toBe(true);expect(calls.find((call)=>call.url.includes('/events?'))?.url).toContain('singleEvents=true');
+  const replay=await c.request('GET',`/api/google/oauth/callback?state=${encodeURIComponent(authorization.searchParams.get('state')!)}&code=AUTHORIZATION_CODE`);expect(replay.statusCode).toBe(302);expect(replay.headers.location).toBe('/?google=error');
+ });
+ it('refreshes only the published dashboard on the configured cycle and reports scheduler state',async()=>{
+  const seen:string[]=[];const c=await setup({renderer:{render:async input=>{seen.push(String(input.dashboard.widgets[0]?.config.text));return sharp({create:{width:600,height:800,channels:3,background:'white'}}).toColourspace('b-w').png().toBuffer();},close:async()=>{}}});
+  expect((await c.request('GET','/api/schedule')).json()).toMatchObject({enabled:true,cycleSeconds:900});
+  expect((await c.request('PUT','/api/schedule',{enabled:false,cycleSeconds:600})).json()).toMatchObject({enabled:false,cycleSeconds:600});
+  expect(c.service.schedulerTick()).toBeNull();
+  expect((await c.request('PUT','/api/schedule',{enabled:true,cycleSeconds:600})).json()).toMatchObject({enabled:true,cycleSeconds:600});
+  await publish(c,addText(c.service.state().draft,'发布版本'));
+  c.db.prepare('UPDATE scheduler_state SET last_attempt=NULL').run();const job=c.service.schedulerTick();expect(job).toMatchObject({kind:'refresh'});await c.service.idle();expect(c.service.job(job!.id).status).toBe('succeeded');expect(c.service.scheduleState().lastSuccessAt).toBeTruthy();expect(new Set(seen)).toEqual(new Set(['发布版本']));
+ });
  it('schedules updates using only the published configuration',async()=>{
   const seen:string[]=[];
   const c=await setup({refreshMs:40,renderer:{render:async input=>{

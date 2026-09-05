@@ -35,7 +35,33 @@ export function openDatabase(directory: string) {
       id TEXT PRIMARY KEY, connection_id TEXT NOT NULL REFERENCES connections(id), revision INTEGER NOT NULL,
       ciphertext TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS weather_cache (
+      cache_key TEXT PRIMARY KEY, connection_id TEXT NOT NULL, connection_revision INTEGER NOT NULL,
+      auth_revision INTEGER NOT NULL, fetched_at TEXT NOT NULL, snapshot TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS image_sources (
+      id TEXT PRIMARY KEY, type TEXT NOT NULL, name TEXT NOT NULL, revision INTEGER NOT NULL,
+      root TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS image_selections (
+      widget_id TEXT PRIMARY KEY, selection_key TEXT NOT NULL, image_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS google_oauth_app (
+      id INTEGER PRIMARY KEY CHECK (id = 1), client_id TEXT NOT NULL,
+      credential_id TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS oauth_states (
+      state_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL, created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS scheduler_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1), enabled INTEGER NOT NULL DEFAULT 1,
+      cycle_seconds INTEGER NOT NULL DEFAULT 900, last_attempt TEXT, last_success TEXT,
+      last_job_id TEXT, last_error TEXT, updated_at TEXT NOT NULL
+    );
     INSERT OR IGNORE INTO migrations VALUES (1);
+    INSERT OR IGNORE INTO scheduler_state(id,enabled,cycle_seconds,updated_at) VALUES (1,1,900,datetime('now'));
   `);
   db.prepare("UPDATE jobs SET status='failed',error='interrupted_by_restart' WHERE status IN ('queued','running')").run();
   return db;

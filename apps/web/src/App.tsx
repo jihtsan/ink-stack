@@ -32,6 +32,15 @@ import type {
   TextConfig,
   TodoConfig,
   WeatherConfig,
+  WeatherConnectionDraft,
+  WeatherConnectionsResponse,
+  WeatherTestResponse,
+  GoogleCalendarInfo,
+  GoogleStatusResponse,
+  ImageListResponse,
+  ImageSource,
+  ImageSourcesResponse,
+  ScheduleState,
   WidgetInstance,
   WidgetSize,
   WidgetType
@@ -50,6 +59,7 @@ type PreviewState = {
   status: "idle" | "queued" | "running" | "ready" | "failed" | "superseded";
   url: string | null;
   editorRevision: number | null;
+  jobId?: string | null;
   message: string;
 };
 
@@ -98,6 +108,7 @@ const emptyPreview: PreviewState = {
   status: "idle",
   url: null,
   editorRevision: null,
+  jobId: null,
   message: "尚未生成预览"
 };
 
@@ -221,6 +232,7 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
               status: hasNewerDraft ? "superseded" : "ready",
               url: action.payload.snapshot.url,
               editorRevision: snapshotRevision ?? null,
+              jobId: null,
               message: hasNewerDraft
                 ? `已发布旧图修订 ${snapshotRevision}；当前草稿待预览`
                 : `已发布修订 ${snapshotRevision}`
@@ -305,11 +317,15 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
           status: action.job.status === "running" ? "running" : "queued",
           url: state.preview.url,
           editorRevision: action.editorRevision,
+          jobId: action.job.id,
           message: "服务端正在生成 PNG 预览"
         },
         notice: { kind: "info", message: "预览任务已提交" }
       };
     case "previewDone":
+      if (state.preview.jobId && state.preview.jobId !== action.job.id) {
+        return state;
+      }
       if (
         action.job.editorRevision !== undefined &&
         action.job.editorRevision < state.editorRevision
@@ -326,6 +342,7 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
             status: "ready",
             url: action.job.previewUrl,
             editorRevision: action.job.editorRevision ?? state.editorRevision,
+            jobId: action.job.id,
             message: "PNG 预览已更新"
           },
           notice: { kind: "success", message: "PNG 预览已更新" }
@@ -515,11 +532,31 @@ export default function App() {
     groups: [],
     lastRead: null
   });
+  const [weatherSources, setWeatherSources] = useState<WeatherConnectionsResponse>({ connections: [] });
+  const [weatherConnectionDraft, setWeatherConnectionDraft] = useState<WeatherConnectionDraft>({
+    name: "天气服务",
+    apiHost: "",
+    authMode: "api-key" as const,
+    apiKey: ""
+  });
+  const [weatherTest, setWeatherTest] = useState<WeatherTestResponse | null>(null);
+  const [weatherTesting, setWeatherTesting] = useState(false);
+  const [imageSources, setImageSources] = useState<ImageSourcesResponse>({ sources: [] });
+  const [imageSourceDraft, setImageSourceDraft] = useState({ type: "album" as ImageSource["type"], name: "我的相册", root: "" });
+  const [imageList, setImageList] = useState<ImageListResponse | null>(null);
+  const [googleStatus, setGoogleStatus] = useState<GoogleStatusResponse>({ app: { configured: false }, connections: [] });
+  const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
+  const [googleAppDraft, setGoogleAppDraft] = useState({ clientId: "", clientSecret: "" });
+  const [schedule, setSchedule] = useState<ScheduleState>({ enabled: true, cycleSeconds: 900, lastAttemptAt: null, lastSuccessAt: null, lastJobId: null, lastError: null, updatedAt: "" });
+  const [scheduleDraft, setScheduleDraft] = useState({ enabled: true, cycleSeconds: 900 });
   const [connectionDraftName, setConnectionDraftName] = useState("本机 Codex");
   const [connectionTest, setConnectionTest] = useState<CodexConnectionTestResponse | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const libraryDragRef = useRef<PublicWidgetDefinition | null>(null);
   const connectionTestSeq = useRef(0);
+  const weatherTestSeq = useRef(0);
+  const previewRunSeq = useRef(0);
+  const previewRequestedRevision = useRef<number | null>(null);
 
   const selectedWidget = useMemo(
     () => state.dashboard.widgets.find((widget) => widget.id === state.selectedId) ?? null,
@@ -528,11 +565,25 @@ export default function App() {
   const selectedDefinition = selectedWidget ? getWidgetDefinition(selectedWidget.type) : null;
   const layoutIssues = useMemo(() => validateLayout(state.dashboard), [state.dashboard]);
   const selectedIssue = layoutIssues.find((issue) => issue.widgetId === state.selectedId);
-  const canPublish = state.draftStatus === "clean" && state.savedRevision > 0;
+  const canPublish = state.draftStatus !== "saving" && state.draftStatus !== "conflict" && state.savedRevision > 0 && layoutIssues.length === 0;
 
   const refreshDashboard = useCallback(async () => {
     const response = await api.getDashboard();
     dispatch({ type: "load", payload: response });
+    if (response.schedule) {
+      setSchedule(response.schedule);
+      setScheduleDraft({ enabled: response.schedule.enabled, cycleSeconds: response.schedule.cycleSeconds });
+    }
+  }, []);
+
+  const refreshSchedule = useCallback(async () => {
+    try {
+      const next = await api.getSchedule();
+      setSchedule(next);
+      setScheduleDraft({ enabled: next.enabled, cycleSeconds: next.cycleSeconds });
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: error instanceof Error ? `设备刷新状态不可用：${error.message}` : "设备刷新状态不可用" } });
+    }
   }, []);
 
   const refreshCodexSources = useCallback(async () => {
@@ -552,6 +603,48 @@ export default function App() {
     }
   }, []);
 
+  const refreshWeatherSources = useCallback(async () => {
+    try {
+      setWeatherSources(await api.listWeatherConnections());
+    } catch (error) {
+      setWeatherSources({ connections: [] });
+      dispatch({
+        type: "setNotice",
+        notice: {
+          kind: "warning",
+          message: error instanceof Error ? `天气连接状态不可用：${error.message}` : "天气连接状态不可用"
+        }
+      });
+    }
+  }, []);
+
+  const refreshImageSources = useCallback(async () => {
+    try {
+      setImageSources(await api.listImageSources());
+    } catch (error) {
+      setImageSources({ sources: [] });
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: error instanceof Error ? `图片资源状态不可用：${error.message}` : "图片资源状态不可用" } });
+    }
+  }, []);
+
+  const loadImageList = useCallback(async (source: ImageSource, recursive: boolean) => {
+    try {
+      setImageList(await api.listImages(source.id, source.revision, recursive));
+    } catch (error) {
+      setImageList(null);
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: error instanceof Error ? `图片扫描失败：${error.message}` : "图片扫描失败" } });
+    }
+  }, []);
+
+  const refreshGoogleStatus = useCallback(async () => {
+    try {
+      setGoogleStatus(await api.getGoogleStatus());
+    } catch (error) {
+      setGoogleStatus({ app: { configured: false }, connections: [] });
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: error instanceof Error ? `Google 连接状态不可用：${error.message}` : "Google 连接状态不可用" } });
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -567,6 +660,9 @@ export default function App() {
         }
         await refreshDashboard();
         await refreshCodexSources();
+        await refreshWeatherSources();
+        await refreshImageSources();
+        await refreshGoogleStatus();
         if (!cancelled) {
           setLoadState("ready");
         }
@@ -594,17 +690,23 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [refreshCodexSources, refreshDashboard]);
+  }, [refreshCodexSources, refreshDashboard, refreshGoogleStatus, refreshImageSources, refreshWeatherSources]);
+
+  useEffect(() => {
+    if (loadState === "ready" && inspectorTab === "device") void refreshSchedule();
+  }, [inspectorTab, loadState, refreshSchedule]);
 
   const mutateDashboard = useCallback((dashboard: DashboardDraft, selectedId?: string | null, notice?: Notice) => {
     dispatch({ type: "mutate", dashboard, selectedId, notice });
   }, []);
 
-  const pollJob = useCallback(async (job: JobResponse, kind: "preview" | "publish") => {
+  const pollJob = useCallback(async (job: JobResponse, kind: "preview" | "publish", previewRun?: number) => {
     let current = job;
     for (let attempt = 0; attempt < 80; attempt += 1) {
       if (["succeeded", "failed", "superseded"].includes(current.status)) {
-        dispatch(kind === "preview" ? { type: "previewDone", job: current } : { type: "publishDone", job: current });
+        if (kind !== "preview" || previewRun === previewRunSeq.current) {
+          dispatch(kind === "preview" ? { type: "previewDone", job: current } : { type: "publishDone", job: current });
+        }
         return;
       }
       await new Promise((resolve) => window.setTimeout(resolve, 750));
@@ -618,7 +720,9 @@ export default function App() {
         });
         return;
       }
-      dispatch(kind === "preview" ? { type: "previewDone", job: current } : { type: "publishDone", job: current });
+      if (kind !== "preview" || previewRun === previewRunSeq.current) {
+        dispatch(kind === "preview" ? { type: "previewDone", job: current } : { type: "publishDone", job: current });
+      }
     }
   }, []);
 
@@ -630,12 +734,15 @@ export default function App() {
         await api.login(password);
         await refreshDashboard();
         await refreshCodexSources();
+        await refreshWeatherSources();
+        await refreshImageSources();
+        await refreshGoogleStatus();
         setLoadState("ready");
       } catch (error) {
         setLoginError(error instanceof Error ? error.message : "登录失败");
       }
     },
-    [password, refreshCodexSources, refreshDashboard]
+    [password, refreshCodexSources, refreshDashboard, refreshGoogleStatus, refreshImageSources, refreshWeatherSources]
   );
 
   const addWidgetAt = useCallback(
@@ -787,31 +894,36 @@ export default function App() {
     [mutateDashboard]
   );
 
-  const saveDraft = useCallback(async () => {
-    const issues = validateLayout(state.dashboard);
+  const saveDashboard = useCallback(async (dashboard: DashboardDraft, baseRevision: number, editorRevision: number): Promise<DashboardResponse | null> => {
+    const issues = validateLayout(dashboard);
     if (issues.length > 0) {
       dispatch({
         type: "setNotice",
         notice: { kind: "error", message: "草稿包含非法布局，已阻止保存" }
       });
-      return;
+      return null;
     }
     dispatch({ type: "saving" });
     try {
-      const editorRevision = state.editorRevision;
-      const response = await api.saveDraft(state.dashboard, state.savedRevision);
+      const response = await api.saveDraft(dashboard, baseRevision);
       dispatch({ type: "saved", payload: response, editorRevision });
+      return response;
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         dispatch({ type: "conflict", message: "草稿修订冲突，请刷新后合并本地修改" });
-        return;
+        return null;
       }
       dispatch({
         type: "setNotice",
         notice: { kind: "error", message: error instanceof Error ? error.message : "保存草稿失败" }
       });
+      return null;
     }
-  }, [state.dashboard, state.savedRevision]);
+  }, []);
+
+  const saveDraft = useCallback(async () => {
+    await saveDashboard(state.dashboard, state.savedRevision, state.editorRevision);
+  }, [saveDashboard, state.dashboard, state.editorRevision, state.savedRevision]);
 
   const createPreview = useCallback(async () => {
     const issues = validateLayout(state.dashboard);
@@ -824,9 +936,13 @@ export default function App() {
     }
     try {
       const editorRevision = state.editorRevision;
+      previewRequestedRevision.current = editorRevision;
+      const previewRun = previewRunSeq.current + 1;
+      previewRunSeq.current = previewRun;
       const job = await api.createPreview(state.dashboard, editorRevision);
+      if (previewRun !== previewRunSeq.current) return;
       dispatch({ type: "previewQueued", editorRevision, job });
-      void pollJob(job, "preview");
+      void pollJob(job, "preview", previewRun);
     } catch (error) {
       dispatch({
         type: "setNotice",
@@ -835,13 +951,29 @@ export default function App() {
     }
   }, [pollJob, state.dashboard, state.editorRevision]);
 
+  useEffect(() => {
+    if (loadState !== "ready" || state.draftStatus === "conflict" || layoutIssues.length > 0) return;
+    if (state.preview.status === "ready" && state.preview.editorRevision === state.editorRevision) return;
+    if (previewRequestedRevision.current === state.editorRevision) return;
+    const timer = window.setTimeout(() => {
+      void createPreview();
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [createPreview, layoutIssues.length, loadState, state.draftStatus, state.editorRevision, state.preview.editorRevision, state.preview.status]);
+
   const publish = useCallback(async () => {
-    if (!canPublish) {
-      dispatch({ type: "setNotice", notice: { kind: "warning", message: "发布前请先保存当前草稿" } });
+    if (!canPublish || state.draftStatus === "conflict") {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: state.draftStatus === "conflict" ? "草稿版本冲突，请刷新后再发布" : "当前草稿还不能发布" } });
       return;
     }
+    const dashboard = cloneDashboard(state.dashboard);
+    const editorRevision = state.editorRevision;
     try {
-      const job = await api.publish(state.savedRevision);
+      const saved = state.draftStatus === "clean"
+        ? { draftRevision: state.savedRevision }
+        : await saveDashboard(dashboard, state.savedRevision, editorRevision);
+      if (!saved) return;
+      const job = await api.publish(saved.draftRevision);
       dispatch({ type: "publishQueued", job });
       void pollJob(job, "publish");
     } catch (error) {
@@ -850,7 +982,7 @@ export default function App() {
         notice: { kind: "error", message: error instanceof Error ? error.message : "发布任务提交失败" }
       });
     }
-  }, [canPublish, pollJob, state.savedRevision]);
+  }, [canPublish, pollJob, saveDashboard, state.dashboard, state.draftStatus, state.editorRevision, state.savedRevision]);
 
   const createDisplayToken = useCallback(async () => {
     try {
@@ -923,11 +1055,79 @@ export default function App() {
     []
   );
 
-  const testWeatherConnection = useCallback((config: WeatherConfig) => {
-    if (!config.connectionId.trim()) {
-      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请先填写和风天气服务端连接 ID" } });
+  const createWeatherConnection = useCallback(async () => {
+    const input = {
+      name: weatherConnectionDraft.name.trim() || "天气服务",
+      apiHost: weatherConnectionDraft.apiHost.trim().toLowerCase(),
+      authMode: weatherConnectionDraft.authMode,
+      apiKey: weatherConnectionDraft.apiKey
+    };
+    if (!input.apiHost || !input.apiKey) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请填写 API Host 和 API Key / JWT" } });
       return;
     }
+    try {
+      const connection = await api.createWeatherConnection(input);
+      setWeatherSources((current) => ({ connections: [...current.connections.filter((item) => item.id !== connection.id), connection] }));
+      setWeatherConnectionDraft((current) => ({ ...current, apiKey: "" }));
+      if (selectedWidget?.type === "weather") {
+        const weatherConfig = selectedWidget.config as WeatherConfig;
+        mutateDashboard(
+          updateWidget(state.dashboard, selectedWidget.id, (widget) => ({
+            ...widget,
+            config: toJsonObject({ ...weatherConfig, connectionId: connection.id, connectionRevision: connection.revision })
+          })),
+          selectedWidget.id
+        );
+      }
+      dispatch({ type: "setNotice", notice: { kind: "success", message: `天气连接已保存：${connection.name}` } });
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "保存天气连接失败" } });
+    }
+  }, [mutateDashboard, selectedWidget, state.dashboard, weatherConnectionDraft]);
+
+  const createImageSource = useCallback(async () => {
+    const input = {
+      type: imageSourceDraft.type,
+      name: imageSourceDraft.name.trim(),
+      ...(imageSourceDraft.type === "directory" ? { root: imageSourceDraft.root.trim() } : {})
+    };
+    if (!input.name || (input.type === "directory" && !input.root)) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: input.type === "directory" ? "请填写资源名称和服务器目录路径" : "请填写相册名称" } });
+      return;
+    }
+    try {
+      const source = await api.createImageSource(input);
+      setImageSources((current) => ({ sources: [...current.sources.filter((item) => item.id !== source.id), source] }));
+      setImageSourceDraft((current) => ({ ...current, name: current.type === "album" ? "我的相册" : current.name }));
+      if (selectedWidget?.type === "image") {
+        const imageConfig = selectedWidget.config as ImageConfig;
+        mutateDashboard(
+          updateWidget(state.dashboard, selectedWidget.id, (widget) => ({
+            ...widget,
+            config: toJsonObject({ ...imageConfig, sourceType: source.type, sourceId: source.id, sourceRevision: source.revision, fixedImageId: "" })
+          })),
+          selectedWidget.id
+        );
+      }
+      dispatch({ type: "setNotice", notice: { kind: "success", message: `图片资源已登记：${source.name}` } });
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "登记图片资源失败" } });
+    }
+  }, [imageSourceDraft, mutateDashboard, selectedWidget, state.dashboard]);
+
+  const uploadImage = useCallback(async (sourceId: string, file: File, recursive: boolean) => {
+    try {
+      const result = await api.uploadImage(sourceId, file);
+      const source = imageSources.sources.find((item) => item.id === sourceId) ?? result.source;
+      await loadImageList(source, recursive);
+      dispatch({ type: "setNotice", notice: { kind: "success", message: `图片已上传：${result.filename}` } });
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "上传图片失败" } });
+    }
+  }, [imageSources.sources, loadImageList]);
+
+  const testWeatherConnection = useCallback(async (config: WeatherConfig) => {
     if (config.locationMode === "city" && !config.city.trim()) {
       dispatch({ type: "setNotice", notice: { kind: "warning", message: "请先填写城市或 Location ID" } });
       return;
@@ -936,8 +1136,81 @@ export default function App() {
       dispatch({ type: "setNotice", notice: { kind: "warning", message: "请填写有效的经纬度" } });
       return;
     }
-    dispatch({ type: "setNotice", notice: { kind: "info", message: "配置格式有效；真实天气请求需等待服务端和风传输接入" } });
+    const saved = weatherSources.connections.find((connection) => connection.id === config.connectionId);
+    if (config.connectionId && !saved) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "天气连接版本已不存在，请重新选择连接" } });
+      return;
+    }
+    const seq = weatherTestSeq.current + 1;
+    weatherTestSeq.current = seq;
+    setWeatherTesting(true);
+    setWeatherTest(null);
+    try {
+      const response = await api.testWeatherConnection(saved
+        ? { connectionId: saved.id, connectionRevision: saved.revision, config }
+        : { config, apiHost: weatherConnectionDraft.apiHost.trim(), authMode: weatherConnectionDraft.authMode, apiKey: weatherConnectionDraft.apiKey });
+      if (seq !== weatherTestSeq.current) return;
+      setWeatherTest(response);
+      dispatch({
+        type: "setNotice",
+        notice: { kind: response.status === "fresh" ? "success" : "warning", message: response.message }
+      });
+    } catch (error) {
+      if (seq !== weatherTestSeq.current) return;
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "天气连接测试失败" } });
+    } finally {
+      if (seq === weatherTestSeq.current) setWeatherTesting(false);
+    }
+  }, [weatherConnectionDraft, weatherSources.connections]);
+
+  const saveGoogleApp = useCallback(async () => {
+    if (!googleAppDraft.clientId.trim() || !googleAppDraft.clientSecret) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请填写 Google OAuth Client ID 和 Client Secret" } });
+      return;
+    }
+    try {
+      const app = await api.saveGoogleApp(googleAppDraft.clientId.trim(), googleAppDraft.clientSecret);
+      setGoogleStatus((current) => ({ ...current, app }));
+      setGoogleAppDraft((current) => ({ ...current, clientSecret: "" }));
+      dispatch({ type: "setNotice", notice: { kind: "success", message: "Google OAuth 应用配置已保存" } });
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "保存 Google OAuth 配置失败" } });
+    }
+  }, [googleAppDraft]);
+
+  const startGoogleOAuth = useCallback(async () => {
+    try {
+      const response = await api.startGoogleOAuth();
+      window.location.assign(response.url);
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "无法开始 Google 授权" } });
+    }
   }, []);
+
+  const loadGoogleCalendars = useCallback(async (connectionId: string, revision: number) => {
+    try {
+      const response = await api.listGoogleCalendars(connectionId, revision);
+      setGoogleCalendars(response.calendars);
+    } catch (error) {
+      setGoogleCalendars([]);
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: error instanceof Error ? error.message : "读取 Google 日历失败" } });
+    }
+  }, []);
+
+  const saveSchedule = useCallback(async () => {
+    if (!Number.isInteger(scheduleDraft.cycleSeconds) || scheduleDraft.cycleSeconds < 60 || scheduleDraft.cycleSeconds > 86400) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "刷新周期必须在 60–86400 秒之间" } });
+      return;
+    }
+    try {
+      const next = await api.saveSchedule(scheduleDraft);
+      setSchedule(next);
+      setScheduleDraft({ enabled: next.enabled, cycleSeconds: next.cycleSeconds });
+      dispatch({ type: "setNotice", notice: { kind: "success", message: "设备刷新周期已保存" } });
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "保存设备刷新周期失败" } });
+    }
+  }, [scheduleDraft]);
 
   const refreshConnection = useCallback(async (connectionId: string) => {
     const seq = connectionTestSeq.current + 1;
@@ -1246,7 +1519,7 @@ export default function App() {
           <button type="button" className="ghost-button icon-button" title="撤销" aria-label="撤销" disabled={!state.undoStack.length} onClick={() => dispatch({ type: "undo" })}><StudioIcon name="undo" /></button>
           <button type="button" className="ghost-button" onClick={saveDraft} disabled={state.draftStatus === "saving"}><StudioIcon name="save" />保存草稿</button>
           <button type="button" className="ghost-button" onClick={() => { setCanvasMode("preview"); void createPreview(); }} disabled={previewBusy}><StudioIcon name="visibility" />{previewBusy ? "生成中" : "预览"}</button>
-          <button type="button" className="primary-button" onClick={publish} disabled={!canPublish} title={canPublish ? "发布已保存的草稿" : "请先保存草稿，等待当前发布完成"}><StudioIcon name="upload" />发布</button>
+          <button type="button" className="primary-button" onClick={publish} disabled={!canPublish} title={canPublish ? "自动保存当前草稿并发布固定版本" : "当前草稿存在冲突、布局问题或尚未初始化"}><StudioIcon name="upload" />一键发布</button>
         </div>
       </header>
 
@@ -1311,6 +1584,12 @@ export default function App() {
             <section className="publish-pane">
               <div className="connection-status"><strong>{state.publishedRevision === null ? "尚未发布画面" : `已发布 · 修订 ${state.publishedRevision}`}</strong><span>{state.publish.message}</span></div>
               <dl><div><dt>草稿</dt><dd>{draftLabel} · 修订 {state.savedRevision}</dd></div><div><dt>屏幕尺寸</dt><dd>{state.dashboard.screen.width} × {state.dashboard.screen.height}</dd></div><div><dt>最近取图</dt><dd>{formatDateTime(state.lastDisplayRequestAt)}</dd></div></dl>
+              <h3 className="section-title">自动刷新</h3>
+              <p className="muted-copy">服务端只对已发布配置按周期重新采集并生成 PNG；设备 GET 不会触发上游请求。</p>
+              <label className="check-row"><input type="checkbox" checked={scheduleDraft.enabled} onChange={(event) => { const enabled = event.currentTarget.checked; setScheduleDraft((current) => ({ ...current, enabled })); }} /><span>启用后台刷新</span></label>
+              <label>刷新周期（秒）<input type="number" min={60} max={86400} step={60} value={scheduleDraft.cycleSeconds} onChange={(event) => { const cycleSeconds = ensureNumber(event.currentTarget.value, scheduleDraft.cycleSeconds); setScheduleDraft((current) => ({ ...current, cycleSeconds })); }} /></label>
+              <button type="button" className="ghost-button" onClick={saveSchedule}>保存刷新设置</button>
+              <dl><div><dt>最近采集</dt><dd>{formatDateTime(schedule.lastSuccessAt)}</dd></div><div><dt>最近失败</dt><dd>{schedule.lastError ? schedule.lastError : "无"}</dd></div></dl>
               <h3 className="section-title">设备图片地址</h3>
               <p className="muted-copy">将图片地址配置到 Kindle 屏保客户端，设备会按自己的日程获取已发布画面。</p>
               {state.displayUrl ? <label>图片地址<input readOnly value={new URL(state.displayUrl, window.location.origin).href} onFocus={(event) => event.currentTarget.select()} /></label> : <p className="muted-copy">{state.displayTokenConfigured ? "地址已配置。原地址只在创建时显示，请使用已保存的地址。" : "先创建一个设备图片地址。"}</p>}
@@ -1325,7 +1604,7 @@ export default function App() {
           </> : <>
             <PanelHeader title="相关属性" subtitle={`${selectedDefinition.manifest.displayName} · ${selectedWidget.columnSpan} × ${selectedWidget.rowSpan}`} />
             <WidgetInspector widget={selectedWidget} definition={selectedDefinition} issue={selectedIssue?.message ?? null} onMove={moveSelected} onResize={resizeSelected} onDelete={deleteWidget} onDuplicate={duplicateWidget} />
-            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} onTestWeatherConnection={testWeatherConnection} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
+            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} weatherSources={weatherSources} weatherConnectionDraft={weatherConnectionDraft} onWeatherConnectionDraftChange={setWeatherConnectionDraft} onCreateWeatherConnection={createWeatherConnection} onRefreshWeatherConnections={refreshWeatherSources} weatherTest={weatherTest} weatherTesting={weatherTesting} onTestWeatherConnection={testWeatherConnection} imageSources={imageSources} imageSourceDraft={imageSourceDraft} onImageSourceDraftChange={setImageSourceDraft} onCreateImageSource={createImageSource} imageList={imageList} onLoadImageList={loadImageList} onUploadImage={uploadImage} googleStatus={googleStatus} googleCalendars={googleCalendars} onClearGoogleCalendars={() => setGoogleCalendars([])} googleAppDraft={googleAppDraft} onGoogleAppDraftChange={setGoogleAppDraft} onSaveGoogleApp={saveGoogleApp} onStartGoogleOAuth={startGoogleOAuth} onLoadGoogleCalendars={loadGoogleCalendars} onRefreshGoogleStatus={refreshGoogleStatus} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
           </>}
         </aside>
       </section>
@@ -1469,7 +1748,30 @@ function ConfigInspector({
   onCreateConnection,
   onRefreshConnections,
   onTestConnection,
+  weatherSources,
+  weatherConnectionDraft,
+  onWeatherConnectionDraftChange,
+  onCreateWeatherConnection,
+  onRefreshWeatherConnections,
+  weatherTest,
+  weatherTesting,
   onTestWeatherConnection,
+  imageSources,
+  imageSourceDraft,
+  onImageSourceDraftChange,
+  onCreateImageSource,
+  imageList,
+  onLoadImageList,
+  onUploadImage,
+  googleStatus,
+  googleCalendars,
+  onClearGoogleCalendars,
+  googleAppDraft,
+  onGoogleAppDraftChange,
+  onSaveGoogleApp,
+  onStartGoogleOAuth,
+  onLoadGoogleCalendars,
+  onRefreshGoogleStatus,
   onRefreshConnection,
   connectionTest
 }: {
@@ -1482,7 +1784,30 @@ function ConfigInspector({
   onCreateConnection: () => void;
   onRefreshConnections: () => void;
   onTestConnection: (connectionId?: string, connectionRevision?: number) => void;
+  weatherSources: WeatherConnectionsResponse;
+  weatherConnectionDraft: WeatherConnectionDraft;
+  onWeatherConnectionDraftChange: (draft: WeatherConnectionDraft) => void;
+  onCreateWeatherConnection: () => void;
+  onRefreshWeatherConnections: () => void;
+  weatherTest: WeatherTestResponse | null;
+  weatherTesting: boolean;
   onTestWeatherConnection: (config: WeatherConfig) => void;
+  imageSources: ImageSourcesResponse;
+  imageSourceDraft: { type: ImageSource["type"]; name: string; root: string };
+  onImageSourceDraftChange: (draft: { type: ImageSource["type"]; name: string; root: string }) => void;
+  onCreateImageSource: () => void;
+  imageList: ImageListResponse | null;
+  onLoadImageList: (source: ImageSource, recursive: boolean) => void;
+  onUploadImage: (sourceId: string, file: File, recursive: boolean) => void;
+  googleStatus: GoogleStatusResponse;
+  googleCalendars: GoogleCalendarInfo[];
+  onClearGoogleCalendars: () => void;
+  googleAppDraft: { clientId: string; clientSecret: string };
+  onGoogleAppDraftChange: (draft: { clientId: string; clientSecret: string }) => void;
+  onSaveGoogleApp: () => void;
+  onStartGoogleOAuth: () => void;
+  onLoadGoogleCalendars: (connectionId: string, revision: number) => void;
+  onRefreshGoogleStatus: () => void;
   onRefreshConnection: (connectionId: string) => void;
   connectionTest: CodexConnectionTestResponse | null;
 }) {
@@ -1552,6 +1877,9 @@ function ConfigInspector({
 
   if (widget.type === "calendar") {
     const calendar = config as CalendarConfig;
+    const selectedGoogleConnection = googleStatus.connections.find((connection) => connection.id === calendar.connectionId);
+    const googleConnectionMissing = Boolean(calendar.connectionId && !selectedGoogleConnection);
+    const selectedCalendarIds = new Set(calendar.calendarIds);
     return (
       <section className="inspector-section">
         <SectionTitle title="显示" />
@@ -1561,14 +1889,34 @@ function ConfigInspector({
         <SelectInput label="每周起始" value={String(calendar.weekStartsOn)} options={[["1", "周一"], ["0", "周日"]]} onChange={(value) => onChange(toJsonObject({ ...calendar, weekStartsOn: Number(value) as CalendarConfig["weekStartsOn"] }))} />
         <CheckboxInput label="显示星期标题" checked={calendar.showWeekdays} onChange={(showWeekdays) => onChange(toJsonObject({ ...calendar, showWeekdays }))} />
         <label>
-          Google 日历连接 ID
-          <input value={calendar.connectionId} placeholder="完成 OAuth 后自动填充" onChange={(event) => onChange(toJsonObject({ ...calendar, connectionId: event.currentTarget.value }))} />
+          已授权 Google 连接
+          <select value={calendar.connectionId} onChange={(event) => {
+            const connection = googleStatus.connections.find((item) => item.id === event.currentTarget.value);
+            onChange(toJsonObject({ ...calendar, connectionId: connection?.id ?? "", connectionRevision: connection?.revision ?? 1 }));
+            if (connection) onLoadGoogleCalendars(connection.id, connection.revision);
+            else onClearGoogleCalendars();
+          }}>
+            <option value="">未连接</option>
+            {googleConnectionMissing ? <option value={calendar.connectionId}>连接已不存在 · 请重新授权</option> : null}
+            {googleStatus.connections.map((connection) => <option key={`${connection.id}-${connection.revision}`} value={connection.id}>{connection.accountLabel} · v{connection.revision}</option>)}
+          </select>
         </label>
-        <label>
-          日历 ID（逗号分隔）
-          <input value={calendar.calendarIds.join(", ")} onChange={(event) => onChange(toJsonObject({ ...calendar, calendarIds: event.currentTarget.value.split(",").map((value) => value.trim()).filter(Boolean) }))} />
-        </label>
-        <p className="muted-copy">Google OAuth 授权和日历选择由服务端连接管理；保存后不会回传 refresh token。</p>
+        <div className="split-actions">
+          <button type="button" className="ghost-button" onClick={() => selectedGoogleConnection && onLoadGoogleCalendars(selectedGoogleConnection.id, selectedGoogleConnection.revision)} disabled={!selectedGoogleConnection}>读取日历</button>
+          <button type="button" className="ghost-button" onClick={onStartGoogleOAuth} disabled={!googleStatus.app.configured}>连接 Google</button>
+          <button type="button" className="ghost-button" onClick={onRefreshGoogleStatus}>刷新状态</button>
+        </div>
+        {googleCalendars.length ? <div className="todo-editor">{googleCalendars.map((item) => <label className="check-row" key={item.id}><input type="checkbox" checked={selectedCalendarIds.has(item.id)} onChange={(event) => {
+          const next = new Set(calendar.calendarIds);
+          if (event.currentTarget.checked) next.add(item.id);
+          else if (next.size > 1) next.delete(item.id);
+          onChange(toJsonObject({ ...calendar, calendarIds: [...next] }));
+        }} /><span>{item.summary}{item.primary ? " · 主日历" : ""}</span></label>)}</div> : <p className="muted-copy">授权后读取日历列表，再选择要显示的日历。</p>}
+        <SectionTitle title="Google OAuth 应用" />
+        <label>Client ID<input value={googleAppDraft.clientId || googleStatus.app.clientId || ""} placeholder="OAuth Web application client ID" onChange={(event) => onGoogleAppDraftChange({ ...googleAppDraft, clientId: event.currentTarget.value })} /></label>
+        <label>Client Secret<input type="password" autoComplete="off" value={googleAppDraft.clientSecret} placeholder="只保存在服务端" onChange={(event) => onGoogleAppDraftChange({ ...googleAppDraft, clientSecret: event.currentTarget.value })} /></label>
+        <div className="split-actions"><button type="button" className="ghost-button" onClick={onSaveGoogleApp}>保存 OAuth 应用</button></div>
+        <p className="muted-copy">在 Google Cloud Console 将 {window.location.origin}/api/google/oauth/callback 配置为精确重定向 URI。refresh token 只在服务端加密保存。</p>
         <div className="field-grid two">
           <label>事件范围（天）<input type="number" min={1} max={31} value={calendar.eventRangeDays} onChange={(event) => onChange(toJsonObject({ ...calendar, eventRangeDays: ensureNumber(event.currentTarget.value, calendar.eventRangeDays) }))} /></label>
           <label>最多显示<input type="number" min={1} max={20} value={calendar.maxVisible} onChange={(event) => onChange(toJsonObject({ ...calendar, maxVisible: ensureNumber(event.currentTarget.value, calendar.maxVisible) }))} /></label>
@@ -1579,6 +1927,8 @@ function ConfigInspector({
 
   if (widget.type === "weather") {
     const weather = config as WeatherConfig;
+    const selectedWeatherConnection = weatherSources.connections.find((connection) => connection.id === weather.connectionId);
+    const weatherConnectionMissing = Boolean(weather.connectionId && !selectedWeatherConnection);
     return (
       <section className="inspector-section">
         <SectionTitle title="显示" />
@@ -1587,14 +1937,28 @@ function ConfigInspector({
         {weather.locationMode === "city" ? <TextInput label="城市 / Location ID" value={weather.city} onChange={(city) => onChange(toJsonObject({ ...weather, city }))} /> : <div className="field-grid two"><label>纬度<input type="number" min={-90} max={90} step="any" value={weather.latitude} onChange={(event) => onChange(toJsonObject({ ...weather, latitude: ensureNumber(event.currentTarget.value, weather.latitude) }))} /></label><label>经度<input type="number" min={-180} max={180} step="any" value={weather.longitude} onChange={(event) => onChange(toJsonObject({ ...weather, longitude: ensureNumber(event.currentTarget.value, weather.longitude) }))} /></label></div>}
         <SelectInput label="单位" value={weather.units} options={[["m", "公制（°C）"], ["i", "英制（°F）"]]} onChange={(units) => onChange(toJsonObject({ ...weather, units: units as WeatherConfig["units"] }))} />
         <label>
-          和风连接 ID
-          <input value={weather.connectionId} placeholder="服务端连接 ID" onChange={(event) => onChange(toJsonObject({ ...weather, connectionId: event.currentTarget.value }))} />
+          已保存天气连接
+          <select value={weather.connectionId} onChange={(event) => {
+            const connection = weatherSources.connections.find((item) => item.id === event.currentTarget.value);
+            onChange(toJsonObject({ ...weather, connectionId: connection?.id ?? "", connectionRevision: connection?.revision ?? 0 }));
+          }}>
+            <option value="">未选择（使用下方输入测试）</option>
+            {weatherConnectionMissing ? <option value={weather.connectionId}>连接已不存在 · 请重新选择</option> : null}
+            {weatherSources.connections.map((connection) => <option key={`${connection.id}-${connection.revision}`} value={connection.id}>{connection.name} · v{connection.revision} · {connection.apiVersion}</option>)}
+          </select>
         </label>
+        <p className="muted-copy">API Host 由 QWeather 控制台分配，例如 h2a9cf3mhs.xy.qweatherapi.com。连接引用只保存 ID 和修订号。</p>
+        <SectionTitle title="连接管理" />
+        <label>连接名称<input value={weatherConnectionDraft.name} onChange={(event) => onWeatherConnectionDraftChange({ ...weatherConnectionDraft, name: event.currentTarget.value })} /></label>
+        <label>API Host<input value={weatherConnectionDraft.apiHost} placeholder="h2a9cf3mhs.xy.qweatherapi.com" onChange={(event) => onWeatherConnectionDraftChange({ ...weatherConnectionDraft, apiHost: event.currentTarget.value })} /></label>
+        <SelectInput label="认证方式" value={weatherConnectionDraft.authMode} options={[["api-key", "API Key"], ["jwt", "JWT"]]} onChange={(authMode) => onWeatherConnectionDraftChange({ ...weatherConnectionDraft, authMode: authMode as WeatherConnectionDraft["authMode"] })} />
+        <label>API Key / JWT<input type="password" autoComplete="off" value={weatherConnectionDraft.apiKey} placeholder="只在保存或测试时提交" onChange={(event) => onWeatherConnectionDraftChange({ ...weatherConnectionDraft, apiKey: event.currentTarget.value })} /></label>
         <div className="split-actions">
-          <button type="button" className="ghost-button" onClick={() => onTestWeatherConnection(weather)}>测试连接</button>
+          <button type="button" className="ghost-button" onClick={onRefreshWeatherConnections}>刷新连接</button>
+          <button type="button" className="ghost-button" onClick={onCreateWeatherConnection}>保存连接</button>
+          <button type="button" className="primary-button" onClick={() => onTestWeatherConnection(weather)} disabled={weatherTesting}>{weatherTesting ? "测试中" : "测试当前输入"}</button>
         </div>
-        <p className="muted-copy">API Host、API Key 或 JWT 只保存在服务端连接中；这里仅保存连接引用。</p>
-        <p className="muted-copy">测试会先检查连接 ID 和位置配置；服务端天气传输接入后才会发起真实请求。</p>
+        {weatherTest ? <div className={`connection-status ${weatherTest.status}`}><strong>{weatherTest.message}</strong>{weatherTest.observedAt ? <span>{formatDateTime(weatherTest.observedAt)}</span> : null}{weatherTest.summary ? <small>{weatherTest.summary.location} · {weatherTest.summary.temperature}{weather.units === "m" ? "°C" : "°F"} · {weatherTest.summary.condition}{weatherTest.summary.humidity === undefined ? "" : ` · 湿度 ${Math.round(weatherTest.summary.humidity)}%`}</small> : null}</div> : <p className="muted-copy">测试会发起一次受限的 QWeather HTTPS 请求；未保存的输入只在本次请求内使用。</p>}
         <SectionTitle title="显示项目" />
         <CheckboxInput label="温度" checked={weather.showTemperature} onChange={(showTemperature) => onChange(toJsonObject({ ...weather, showTemperature }))} />
         <CheckboxInput label="天气状况" checked={weather.showCondition} onChange={(showCondition) => onChange(toJsonObject({ ...weather, showCondition }))} />
@@ -1610,15 +1974,45 @@ function ConfigInspector({
 
   if (widget.type === "image") {
     const image = config as ImageConfig;
+    const selectedImageSource = imageSources.sources.find((source) => source.id === image.sourceId);
+    const imageSourceMissing = Boolean(image.sourceId && image.sourceId !== "unconfigured" && !selectedImageSource);
+    const listedImages = imageList?.source.id === image.sourceId && imageList.source.revision === image.sourceRevision ? imageList.images : [];
     return (
       <section className="inspector-section">
         <SectionTitle title="图片相册" />
         <TextInput label="标题" value={image.title} onChange={(title) => onChange(toJsonObject({ ...image, title }))} />
-        <SelectInput label="资源类型" value={image.sourceType} options={[["album", "平台相册"], ["directory", "登记目录"]]} onChange={(sourceType) => onChange(toJsonObject({ ...image, sourceType: sourceType as ImageConfig["sourceType"] }))} />
-        <label>相册 / 目录 ID<input value={image.sourceId} placeholder="由服务端资源管理生成" onChange={(event) => onChange(toJsonObject({ ...image, sourceId: event.currentTarget.value }))} /></label>
+        <label>
+          已登记图片资源
+          <select value={image.sourceId} onChange={(event) => {
+            const source = imageSources.sources.find((item) => item.id === event.currentTarget.value);
+            onChange(toJsonObject({ ...image, sourceType: source?.type ?? "album", sourceId: source?.id ?? "unconfigured", sourceRevision: source?.revision ?? 0, fixedImageId: "" }));
+            if (source) onLoadImageList(source, image.recursive);
+          }}>
+            <option value="unconfigured">未配置资源</option>
+            {imageSourceMissing ? <option value={image.sourceId}>资源已不存在或已变更 · 请重新选择</option> : null}
+            {imageSources.sources.map((source) => <option key={`${source.id}-${source.revision}`} value={source.id}>{source.name} · {source.type === "album" ? "相册" : "目录"} · v{source.revision}</option>)}
+          </select>
+        </label>
+        <div className="split-actions">
+          <button type="button" className="ghost-button" onClick={() => selectedImageSource && onLoadImageList(selectedImageSource, image.recursive)} disabled={!selectedImageSource}>扫描图片</button>
+          {selectedImageSource?.type === "album" ? <label className="file-button ghost-button">上传图片<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) onUploadImage(selectedImageSource.id, file, image.recursive); event.currentTarget.value = ""; }} /></label> : null}
+        </div>
+        {imageList && imageList.source.id === image.sourceId ? <p className="muted-copy">扫描状态：{imageList.state} · {imageList.images.length} 张可用 · 跳过 {imageList.skipped} 张</p> : null}
+        <SectionTitle title="资源管理" />
+        <SelectInput label="新资源类型" value={imageSourceDraft.type} options={[["album", "平台相册"], ["directory", "登记目录"]]} onChange={(type) => onImageSourceDraftChange({ ...imageSourceDraft, type: type as ImageSource["type"] })} />
+        <TextInput label="资源名称" value={imageSourceDraft.name} onChange={(name) => onImageSourceDraftChange({ ...imageSourceDraft, name })} />
+        {imageSourceDraft.type === "directory" ? <label>服务器目录路径<input value={imageSourceDraft.root} placeholder="绝对路径，由服务端读取" onChange={(event) => onImageSourceDraftChange({ ...imageSourceDraft, root: event.currentTarget.value })} /></label> : null}
+        <button type="button" className="ghost-button" onClick={onCreateImageSource}>登记图片资源</button>
         <CheckboxInput label="扫描子目录" checked={image.recursive} onChange={(recursive) => onChange(toJsonObject({ ...image, recursive }))} />
         <SelectInput label="选图方式" value={image.selection} options={[["random", "随机"], ["sequential", "按顺序"], ["fixed", "固定图片"]]} onChange={(selection) => onChange(toJsonObject({ ...image, selection: selection as ImageConfig["selection"] }))} />
-        {image.selection === "fixed" ? <TextInput label="固定图片 ID" value={image.fixedImageId} onChange={(fixedImageId) => onChange(toJsonObject({ ...image, fixedImageId }))} /> : null}
+        {image.selection === "fixed" ? <label>
+          固定图片
+          <select value={image.fixedImageId} onChange={(event) => onChange(toJsonObject({ ...image, fixedImageId: event.currentTarget.value }))}>
+            <option value="">请选择已扫描图片</option>
+            {image.fixedImageId && !listedImages.some((item) => item.id === image.fixedImageId) ? <option value={image.fixedImageId}>当前固定图片不可用</option> : null}
+            {listedImages.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.width}×{item.height}</option>)}
+          </select>
+        </label> : null}
         <CheckboxInput label="随机一轮内不重复" checked={image.noRepeat} onChange={(noRepeat) => onChange(toJsonObject({ ...image, noRepeat }))} />
         <label>轮换间隔（秒）<input type="number" min={60} max={31536000} value={image.rotationSeconds} onChange={(event) => onChange(toJsonObject({ ...image, rotationSeconds: ensureNumber(event.currentTarget.value, image.rotationSeconds) }))} /></label>
         <SelectInput label="图片适配" value={image.fit} options={[["contain", "完整显示并留白"], ["cover", "填满并裁剪"]]} onChange={(fit) => onChange(toJsonObject({ ...image, fit: fit as ImageConfig["fit"] }))} />
@@ -1769,4 +2163,3 @@ function CheckboxInput({ label, checked, onChange }: { label: string; checked: b
     </label>
   );
 }
-

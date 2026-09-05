@@ -110,6 +110,17 @@ export type DashboardResponse = {
   lastError: string | null;
   displayTokenConfigured: boolean;
   lastDisplayRequestAt: string | null;
+  schedule?: ScheduleState;
+};
+
+export type ScheduleState = {
+  enabled: boolean;
+  cycleSeconds: number;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastJobId: string | null;
+  lastError: string | null;
+  updatedAt: string;
 };
 
 export type JobResponse = {
@@ -162,4 +173,83 @@ export type CodexConnectionTestResponse = {
   observedAt: string;
   error?: string;
   groups: CodexLimitGroup[];
+};
+
+export type WeatherConnection = {
+  id: string;
+  type: "qweather";
+  revision: number;
+  name: string;
+  settings: Record<string, never>;
+  configured: boolean;
+  apiHost: string;
+  authMode: "jwt" | "api-key";
+  apiVersion: "v1" | "v7";
+  credentialConfigured: boolean;
+};
+
+export type WeatherConnectionsResponse = {
+  connections: WeatherConnection[];
+};
+
+export type WeatherTestResponse = {
+  status: "fresh" | "stale" | "unavailable" | "unauthenticated";
+  reason?: "missing" | "expired" | "connection" | "authentication" | "location" | "timeout" | "network" | "response";
+  observedAt?: string;
+  message: string;
+  summary?: {
+    location: string;
+    temperature: number;
+    condition: string;
+    feelsLike?: number;
+    humidity?: number;
+    windSpeed?: number;
+    forecastCount: number;
+  };
+};
+
+export type WeatherConnectionDraft = {
+  name: string;
+  apiHost: string;
+  authMode: "jwt" | "api-key";
+  apiKey: string;
+};
+
+export type ImageSource = {
+  id: string;
+  type: "album" | "directory";
+  name: string;
+  revision: number;
+  configured: boolean;
+};
+
+export type ImageSourcesResponse = {
+  sources: ImageSource[];
+};
+
+export type ImageListResponse = {
+  source: ImageSource;
+  state: string;
+  observedAt: string;
+  skipped: number;
+  images: Array<{ id: string; name: string; width: number; height: number }>;
+};
+
+export type GoogleStatusResponse = {
+  app: { configured: boolean; clientId?: string };
+  connections: Array<{
+    id: string;
+    type: "google-calendar-oauth";
+    name: string;
+    revision: number;
+    configured: boolean;
+    accountLabel: string;
+  }>;
+};
+
+export type GoogleCalendarInfo = {
+  id: string;
+  summary: string;
+  primary: boolean;
+  timeZone?: string;
 };
