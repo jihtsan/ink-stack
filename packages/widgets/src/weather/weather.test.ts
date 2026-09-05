@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import { validateWidgetInstanceConfig, widgetCatalog } from "../catalog.js";
 import { renderWidgetToSvg } from "../registry.server.js";
 import { textWidth } from "../render-utils.js";
-import { collectWeather, validQWeatherConnection, weatherCacheKey, type QWeatherConnection, type QWeatherTransport } from "./server.js";
-import { normalizeWeatherAirQuality, normalizeWeatherHourlyForecast, normalizeWeatherLocation, normalizeWeatherSnapshot, weatherEnvelope } from "./normalize.js";
+import { collectWeather, lookupWeatherLocations, validQWeatherConnection, weatherCacheKey, type QWeatherConnection, type QWeatherTransport } from "./server.js";
+import { normalizeWeatherAirQuality, normalizeWeatherHourlyForecast, normalizeWeatherLocation, normalizeWeatherLocations, normalizeWeatherSnapshot, weatherEnvelope } from "./normalize.js";
 import { renderWeatherWidget } from "./render.js";
 import type { WeatherConfig, WeatherError } from "./types.js";
 import defaults from "./defaults.json" with { type: "json" };
@@ -35,7 +35,7 @@ describe("weather contracts and normalization", () => {
   it.each([
     { city: " " }, { latitude: -91 }, { longitude: 181 }, { units: "kelvin" }, { refreshSeconds: 0 },
     { cacheTtlSeconds: 0 }, { maxStaleSeconds: -1 }, { connectionRevision: 0 }, { connectionRevision: 1.5 },
-    { apiKey: "DO_NOT_SERIALIZE" }, { jwt: "DO_NOT_SERIALIZE" }, { apiHost: "localhost" }, { secretRef: "hidden" }
+    { apiKey: "DO_NOT_SERIALIZE" }, { jwt: "DO_NOT_SERIALIZE" }, { apiHost: "localhost" }, { secretRef: "hidden" }, { locationId: "bad/id" }
   ])("rejects invalid/public secret config %j", (patch) => {
     expect(validateWidgetInstanceConfig({ ...instance, config: { ...defaults, ...patch } }).ok).toBe(false);
   });
@@ -80,6 +80,7 @@ describe("weather contracts and normalization", () => {
       expect(normalizeWeatherSnapshot({ ...current, now: { ...current.now, obsTime } }, daily, { location: "北京", units: "m" })).toBeUndefined();
     }
     expect(normalizeWeatherLocation({ ...location, location: [...location.location, ...location.location] })).toBeUndefined();
+    expect(normalizeWeatherLocations({ ...location, location: [...location.location, ...location.location] })).toHaveLength(2);
   });
   it.each(states)("handles $name fixture", (state) => {
     const result = weatherEnvelope(state.noData ? undefined : snapshot, config, state.now, state.failure as WeatherError | undefined);
@@ -117,6 +118,33 @@ describe("server collection", () => {
     const url = new URL(transport.mock.calls[0]![0].url);
     expect(url.searchParams.get("location")).toBe("116.42,39.92");
     expect(url.searchParams.get("unit")).toBe("i");
+  });
+  it("uses a selected Location ID and coordinates without repeating city lookup", async () => {
+    const transport = makeTransport();
+    const result = await collectWeather({ config: { ...config, locationId: "101010100", city: "北京", showForecast: false }, connection, now, transport });
+    expect(result.envelope.status).toBe("fresh");
+    expect(transport).toHaveBeenCalledTimes(1);
+    const url = new URL(transport.mock.calls[0]![0].url);
+    expect(url.pathname).toBe("/v7/weather/now");
+    expect(url.searchParams.get("location")).toBe("101010100");
+    expect(url.searchParams.get("unit")).toBe("m");
+  });
+  it("searches and sanitizes multiple GeoAPI locations", async () => {
+    const transport = vi.fn<QWeatherTransport>(async () => ({
+      code: "200",
+      location: [
+        { id: "101010100", name: "北京", lat: "39.90", lon: "116.41", adm1: "北京市", adm2: "北京市", country: "中国", rank: "10" },
+        { id: "101011600", name: "东城", lat: "39.92", lon: "116.42", adm1: "北京市", adm2: "北京市", country: "中国", rank: "35", secret: "SECRET_SENTINEL" }
+      ]
+    }));
+    const result = await lookupWeatherLocations({ connection, query: "北京", transport });
+    expect(result).toEqual({ locations: [
+      { id: "101010100", name: "北京", latitude: 39.9, longitude: 116.41, adm1: "北京市", adm2: "北京市", country: "中国", rank: 10 },
+      { id: "101011600", name: "东城", latitude: 39.92, longitude: 116.42, adm1: "北京市", adm2: "北京市", country: "中国", rank: 35 }
+    ] });
+    expect(transport.mock.calls[0]![0].url).toContain("/geo/v2/city/lookup?");
+    expect(transport.mock.calls[0]![0].url).toContain("number=20");
+    expect(JSON.stringify(result)).not.toContain("SECRET_SENTINEL");
   });
   it("uses the current v1 coordinate endpoints and converts metric measurements", async () => {
     const v1Current = {

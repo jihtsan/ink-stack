@@ -1,7 +1,7 @@
 // Server-only entry: never export this module from catalog.ts or render.ts.
 import { validateWeatherConfig } from "../generated/config-validators.js";
-import { normalizeWeatherLocation, normalizeWeatherSnapshot, qweatherResponseError, timestamp, weatherEnvelope } from "./normalize.js";
-import type { WeatherConfig, WeatherEnvelope, WeatherError, WeatherSnapshot } from "./types.js";
+import { normalizeWeatherLocation, normalizeWeatherLocations, normalizeWeatherSnapshot, qweatherResponseError, timestamp, weatherEnvelope } from "./normalize.js";
+import type { WeatherConfig, WeatherEnvelope, WeatherError, WeatherLocation, WeatherSnapshot } from "./types.js";
 
 export interface QWeatherConnection {
   id: string;
@@ -58,9 +58,52 @@ export function weatherCacheKey(config: WeatherConfig, connection: QWeatherConne
   return JSON.stringify([
     "qweather-v1", connection.id, connection.revision, connection.authRevision, connection.identity,
     connection.apiHost, connection.authMode, connection.secretRef, connection.apiVersion ?? "v7", config.locationMode,
-    config.locationMode === "city" ? config.city.trim() : [config.longitude, config.latitude],
+    config.locationMode === "city" ? [config.locationId ?? null, config.city.trim(), config.longitude, config.latitude] : [config.longitude, config.latitude],
     config.units, config.showForecast, config.forecastMode ?? "daily"
   ]);
+}
+
+/** Search GeoAPI without persisting the query or returning provider-only fields. */
+export async function lookupWeatherLocations(options: {
+  connection?: QWeatherConnection;
+  query: string;
+  transport: QWeatherTransport;
+  timeoutMs?: number;
+}): Promise<{ locations: WeatherLocation[]; error?: WeatherError }> {
+  const query = options.query.trim();
+  if (!options.connection || !validQWeatherConnection(options.connection) || !query || query.length > 80) {
+    return { locations: [], error: "connection" };
+  }
+  const timeoutMs = Math.max(100, Math.min(15_000, Number.isFinite(options.timeoutMs) ? options.timeoutMs! : 8_000));
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => { controller.abort(); reject(new WeatherFetchError("timeout")); }, timeoutMs);
+  });
+  try {
+    const url = new URL(`https://${options.connection.apiHost}/geo/v2/city/lookup`);
+    url.search = new URLSearchParams({ location: query, number: "20", lang: "zh" }).toString();
+    const response = await Promise.race([deadline, options.transport({
+      url: url.href,
+      method: "GET",
+      redirect: "error",
+      timeoutMs,
+      maxResponseBytes: 262_144,
+      signal: controller.signal,
+      authentication: {
+        secretRef: options.connection.secretRef,
+        header: options.connection.authMode === "jwt" ? "Authorization" : "X-QW-Api-Key",
+        prefix: options.connection.authMode === "jwt" ? "Bearer " : ""
+      }
+    })]);
+    const error = qweatherResponseError(response);
+    return error ? { locations: [], error } : { locations: normalizeWeatherLocations(response) };
+  } catch (error) {
+    return { locations: [], error: error instanceof WeatherFetchError ? error.category : "network" };
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
 }
 
 /** One scheduled collection. Caller persists/reuses cache and coalesces identical keys.
@@ -114,7 +157,13 @@ export async function collectWeather(options: {
       let location = `${config.longitude.toFixed(2)},${config.latitude.toFixed(2)}`;
       let locationName = location;
       let coordinates = { latitude: config.latitude, longitude: config.longitude };
-      if (config.locationMode === "city") {
+      const selectedLocationId = typeof config.locationId === "string" && /^[a-zA-Z0-9_-]{1,40}$/.test(config.locationId)
+        ? config.locationId
+        : undefined;
+      if (selectedLocationId) {
+        location = selectedLocationId;
+        locationName = config.city.trim() || selectedLocationId;
+      } else if (config.locationMode === "city") {
         const result = normalizeWeatherLocation(await request("/geo/v2/city/lookup", { location: config.city.trim(), number: "20" }));
         if (!result) throw new WeatherFetchError("location");
         location = result.id;

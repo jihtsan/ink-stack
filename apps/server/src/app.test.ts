@@ -124,6 +124,42 @@ describe('management, rendering and delivery',()=>{
   expect(c.service.job(preview.json().id)).toMatchObject({status:'succeeded'});
   const status=c.db.prepare('SELECT data_status FROM snapshots WHERE id=?').get(preview.json().id) as {data_status:string};expect(JSON.parse(status.data_status)).toMatchObject({'weather-live':{status:'fresh'}});
  });
+ it('searches sanitized weather locations and lets a selected location bypass ambiguous city lookup',async()=>{
+  const observed=()=>new Date(Date.now()-1000).toISOString();
+  const calls:string[]=[];
+  const weatherTransport=async({url}:{url:string})=>{
+   calls.push(url);
+   if(url.includes('/geo/'))return {code:'200',location:[
+    {id:'101010100',name:'北京',lat:'39.90',lon:'116.41',adm1:'北京市',adm2:'北京市',country:'中国',rank:'10'},
+    {id:'101011600',name:'东城',lat:'39.92',lon:'116.42',adm1:'北京市',adm2:'北京市',country:'中国',rank:'35'}
+   ]};
+   return {updateTime:observed(),temperature:{value:24},condition:{text:'晴'}};
+  };
+  const c=await setup({masterKey:Buffer.alloc(32,9),weatherTransport,weatherTestTransport:weatherTransport});
+  const searched=await c.request('POST','/api/weather-connections/locations',{query:'北京',apiHost:'https://h2a9cf3mhs.xy.qweatherapi.com/',authMode:'api-key',apiKey:'LOCATION_SECRET_SENTINEL'});
+  expect(searched.statusCode).toBe(200);
+  expect(searched.json()).toMatchObject({status:'ok',locations:[
+   {id:'101010100',name:'北京',latitude:39.9,longitude:116.41,adm1:'北京市',adm2:'北京市'},
+   {id:'101011600',name:'东城',latitude:39.92,longitude:116.42,adm1:'北京市',adm2:'北京市'}
+  ]});
+  expect(JSON.stringify(searched.json())).not.toContain('LOCATION_SECRET_SENTINEL');
+  const created=await c.request('POST','/api/weather-connections',{name:'北京天气',apiHost:'https://h2a9cf3mhs.xy.qweatherapi.com/',authMode:'api-key',apiKey:'LOCATION_SECRET_SENTINEL'});
+  expect(created.statusCode).toBe(201);
+  const savedSearch=await c.request('POST','/api/weather-connections/locations',{connectionId:created.json().id,connectionRevision:created.json().revision,query:'北京'});
+  expect(savedSearch.statusCode).toBe(200);
+  expect(savedSearch.json()).toMatchObject({status:'ok'});
+  expect(savedSearch.json().locations[0]).toMatchObject({id:'101010100',latitude:39.9,longitude:116.41});
+  expect(JSON.stringify(savedSearch.json())).not.toContain('LOCATION_SECRET_SENTINEL');
+  const selected=searched.json().locations[0];
+  calls.length=0;
+  const definition=getWidgetDefinition('weather')!;
+  const config={...structuredClone(definition.defaults),locationId:selected.id,city:selected.name,latitude:selected.latitude,longitude:selected.longitude,showForecast:false};
+  const tested=await c.request('POST','/api/weather-connections/test',{config,apiHost:'https://h2a9cf3mhs.xy.qweatherapi.com/',authMode:'api-key',apiKey:'LOCATION_SECRET_SENTINEL'});
+  expect(tested.statusCode).toBe(200);
+  expect(tested.json()).toMatchObject({status:'fresh',summary:{location:'北京',temperature:24,condition:'晴'}});
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).not.toContain('/geo/');
+ });
  it('manages uploaded albums without exposing roots and protects image references',async()=>{
   const c=await setup();
   const created=await c.request('POST','/api/image-sources',{type:'album',name:'旅行相册'});expect(created.statusCode).toBe(201);expect(created.json()).toMatchObject({type:'album',revision:1,configured:true});expect(JSON.stringify(created.json())).not.toContain(c.directory);

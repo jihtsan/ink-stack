@@ -7,6 +7,7 @@
     "title": { "type": "string", "maxLength": 60, "title": "标题" },
     "locationMode": { "type": "string", "enum": ["city", "coordinates"], "title": "位置方式" },
     "city": { "type": "string", "maxLength": 80, "title": "城市名或 Location ID" },
+    "locationId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,40}$", "title": "已授权 Location ID" },
     "latitude": { "type": "number", "minimum": -90, "maximum": 90, "title": "纬度" },
     "longitude": { "type": "number", "minimum": -180, "maximum": 180, "title": "经度" },
     "units": { "type": "string", "enum": ["m", "i"], "title": "单位（m 公制 / i 英制）" },

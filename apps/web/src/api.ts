@@ -6,6 +6,7 @@ import type {
   DashboardResponse,
   JobResponse,
   WeatherConnectionsResponse,
+  WeatherLocationSearchResponse,
   WeatherTestResponse,
   WeatherConnection,
   GoogleStatusResponse,
@@ -155,6 +156,13 @@ export const api = {
 
   async testWeatherConnection(input: { connectionId?: string; connectionRevision?: number; config: unknown; apiHost?: string; authMode?: "jwt" | "api-key"; apiKey?: string }): Promise<WeatherTestResponse> {
     return request("/api/weather-connections/test", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
+  async searchWeatherLocations(input: { connectionId?: string; connectionRevision?: number; query: string; apiHost?: string; authMode?: "jwt" | "api-key"; apiKey?: string }): Promise<WeatherLocationSearchResponse> {
+    return request("/api/weather-connections/locations", {
       method: "POST",
       body: JSON.stringify(input)
     });

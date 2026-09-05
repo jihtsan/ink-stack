@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import type { DashboardDraft } from "@ink-stack/shared";
-import { collectWeather, weatherCacheKey, type QWeatherConnection, type QWeatherTransport, type WeatherCacheEntry } from "@ink-stack/widgets/weather/server";
-import type { WeatherConfig, WeatherEnvelope } from "@ink-stack/widgets/weather/types";
+import { collectWeather, lookupWeatherLocations as fetchWeatherLocations, weatherCacheKey, type QWeatherConnection, type QWeatherTransport, type WeatherCacheEntry } from "@ink-stack/widgets/weather/server";
+import type { WeatherConfig, WeatherEnvelope, WeatherError, WeatherLocation } from "@ink-stack/widgets/weather/types";
 import { validateWidgetInstanceConfig } from "@ink-stack/widgets";
 import type { InkDatabase } from "../storage/database.js";
 import { readCodexLimits, type CodexLimitsResult } from "../connectors/codex-app-server.js";
@@ -215,6 +215,26 @@ export class Connections {
       apiVersion: "v1", secretRef, authRevision: 1, identity: "ephemeral-test"
     };
     return (await collectWeather({ config: { ...config, connectionId: testId, connectionRevision: 1 }, connection, now, transport })).envelope;
+  }
+
+  async lookupWeatherLocations(query: string, options: { connectionId?: string; connectionRevision?: number; input?: WeatherConnectionInput } = {}): Promise<{ locations: WeatherLocation[]; error?: WeatherError }> {
+    let connection: QWeatherConnection | undefined;
+    let transport: QWeatherTransport | undefined;
+    if (options.input) {
+      const apiHost = normalizeWeatherHost(options.input.apiHost);
+      if (!apiHost || !options.input.apiKey.trim() || options.input.apiKey.length > 8192 || !["jwt", "api-key"].includes(options.input.authMode)) {
+        return { locations: [], error: "connection" };
+      }
+      const testId = "weather-location-test";
+      const secretRef = `qweather:${testId}:${randomBytes(12).toString("hex")}`;
+      connection = { id: testId, revision: 1, type: "qweather", apiHost, authMode: options.input.authMode, apiVersion: "v1", secretRef, authRevision: 1, identity: "ephemeral-location-test" };
+      transport = this.weatherTestTransport ?? new QWeatherHttpClient((owner) => owner === testId ? options.input!.apiKey : undefined).transport;
+    } else if (options.connectionId) {
+      connection = this.weather(options.connectionId, options.connectionRevision ?? 1);
+      transport = this.weatherTransport;
+    }
+    if (!connection || !transport) return { locations: [], error: "connection" };
+    return fetchWeatherLocations({ connection, query, transport });
   }
 
   validate(dashboard: DashboardDraft): void {
