@@ -1,0 +1,9 @@
+{
+  "config": {
+    "format": "full",
+    "showWeekday": true,
+    "subtitle": "服务端固定时间"
+  },
+  "now": "2026-09-05T08:00:00.000Z",
+  "size": { "columns": 4, "rows": 1 }
+}

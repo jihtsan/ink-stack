@@ -1,0 +1,14 @@
+{
+  "type": "codex-usage",
+  "version": "0.1.0",
+  "configVersion": 1,
+  "displayName": "Codex 额度",
+  "description": "显示官方 Codex App Server 只读额度快照。",
+  "category": "account",
+  "connectionType": "codex-app-server",
+  "supportedSizes": [
+    { "columns": 2, "rows": 4 }
+  ],
+  "defaultSize": { "columns": 2, "rows": 4 },
+  "minimumPixelSize": { "width": 220, "height": 330 }
+}

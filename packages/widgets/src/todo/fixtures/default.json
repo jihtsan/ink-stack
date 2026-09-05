@@ -1,0 +1,12 @@
+{
+  "config": {
+    "title": "待办",
+    "items": [
+      { "id": "a", "text": "验证两个同类型实例独立配置", "done": false },
+      { "id": "b", "text": "发布前看实际 PNG", "done": false }
+    ],
+    "sort": "open-first",
+    "maxVisible": 6
+  },
+  "size": { "columns": 2, "rows": 4 }
+}

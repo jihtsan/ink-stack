@@ -1,0 +1,16 @@
+{
+  "raw": {
+    "rateLimits": {
+      "limitId": "codex",
+      "limitName": "Codex",
+      "planType": "pro",
+      "primary": { "usedPercent": 100, "windowDurationMins": 300, "resetsAt": 1788609600 },
+      "secondary": { "usedPercent": 20, "windowDurationMins": 10080, "resetsAt": 1789095600 },
+      "rateLimitReachedType": "primary"
+    }
+  },
+  "options": {
+    "observedAt": "2026-09-05T00:00:00.000Z",
+    "now": "2026-09-05T00:00:00.000Z"
+  }
+}

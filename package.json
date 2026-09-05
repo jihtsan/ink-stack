@@ -1,0 +1,12 @@
+{
+  "name": "ink-stack", "version": "0.1.0", "private": true, "type": "module",
+  "workspaces": ["packages/shared", "packages/widgets", "apps/server", "apps/web"],
+  "engines": {"node": ">=24 <25"},
+  "scripts": {
+    "build": "npm run build -w @ink-stack/shared && npm run build -w @ink-stack/widgets && npm run build -w @ink-stack/server && npm run build -w @ink-stack/web",
+    "typecheck": "npm run build -w @ink-stack/shared && npm run build -w @ink-stack/widgets && npm run typecheck --workspaces --if-present",
+    "test": "npm run build -w @ink-stack/shared && npm run build -w @ink-stack/widgets && npm run build -w @ink-stack/server && vitest run", "start": "node apps/server/dist/index.js", "dev": "npm run build && npm start",
+    "lint": "node scripts/check-boundaries.mjs"
+  },
+  "devDependencies": {"typescript": "5.9.3", "vitest": "5.0.0", "@types/node": "24.10.1", "@types/better-sqlite3": "9.6.0", "@types/react": "19.2.18", "@types/react-dom": "19.2.7"}
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ink-stack.local/schemas/dashboard-draft.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name", "revision", "timeZone", "screen", "grid", "theme", "widgets"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "id": { "type": "string", "pattern": "^[\\s\\S]{1,120}$" },
+    "name": { "type": "string", "pattern": "^[\\s\\S]{1,80}$" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "timeZone": { "type": "string", "pattern": "^[\\s\\S]{1,100}$" },
+    "screen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1, "maximum": 2048 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 2048 }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "rows", "columnGap", "rowGap", "margin"],
+      "properties": {
+        "columns": { "type": "integer", "minimum": 1, "maximum": 24 },
+        "rows": { "type": "integer", "minimum": 1, "maximum": 24 },
+        "columnGap": { "type": "integer", "minimum": 0, "maximum": 1024 },
+        "rowGap": { "type": "integer", "minimum": 0, "maximum": 1024 },
+        "margin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["top", "right", "bottom", "left"],
+          "properties": {
+            "top": { "type": "integer", "minimum": 0, "maximum": 1024 },
+            "right": { "type": "integer", "minimum": 0, "maximum": 1024 },
+            "bottom": { "type": "integer", "minimum": 0, "maximum": 1024 },
+            "left": { "type": "integer", "minimum": 0, "maximum": 1024 }
+          }
+        }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["background", "foreground", "muted", "border"],
+      "properties": {
+        "background": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "foreground": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "muted": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "border": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+      }
+    },
+    "widgets": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "configVersion", "config", "column", "row", "columnSpan", "rowSpan"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[\\s\\S]{1,120}$" },
+          "type": { "type": "string", "pattern": "^[\\s\\S]{1,120}$" },
+          "configVersion": { "type": "integer", "minimum": 1 },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "column": { "type": "integer", "minimum": 0 },
+          "row": { "type": "integer", "minimum": 0 },
+          "columnSpan": { "type": "integer", "minimum": 1 },
+          "rowSpan": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

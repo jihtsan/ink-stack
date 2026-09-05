@@ -1,0 +1,15 @@
+{
+  "type": "todo",
+  "version": "0.1.0",
+  "configVersion": 1,
+  "displayName": "待办",
+  "description": "手动维护的待办列表，不接入第三方服务。",
+  "category": "productivity",
+  "supportedSizes": [
+    { "columns": 2, "rows": 2 },
+    { "columns": 2, "rows": 4 },
+    { "columns": 4, "rows": 2 },
+    { "columns": 4, "rows": 3 }
+  ],
+  "defaultSize": { "columns": 2, "rows": 4 }
+}

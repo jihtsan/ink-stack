@@ -1,0 +1,18 @@
+{
+  "raw": {
+    "rateLimitsByLimitId": {
+      "pro": {
+        "limitId": "pro",
+        "limitName": "Pro",
+        "planType": "pro",
+        "primary": null,
+        "secondary": null,
+        "rateLimitReachedType": null
+      }
+    }
+  },
+  "options": {
+    "selectedQuotaGroupId": "missing",
+    "observedAt": "2026-09-05T00:00:00.000Z"
+  }
+}

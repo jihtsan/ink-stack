@@ -1,0 +1,27 @@
+{
+  "raw": {
+    "rateLimitsByLimitId": {
+      "codex": {
+        "limitId": "codex",
+        "limitName": "Codex",
+        "planType": "pro",
+        "primary": { "usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1788591600 },
+        "secondary": { "usedPercent": 59, "windowDurationMins": 10080, "resetsAt": 1789095600 },
+        "rateLimitReachedType": null
+      },
+      "team": {
+        "limitId": "team",
+        "limitName": "Team",
+        "planType": "team",
+        "primary": { "usedPercent": 10, "windowDurationMins": 300, "resetsAt": 1788591600 },
+        "secondary": null,
+        "rateLimitReachedType": null
+      }
+    }
+  },
+  "options": {
+    "selectedQuotaGroupId": "codex",
+    "observedAt": "2026-09-05T00:00:00.000Z",
+    "now": "2026-09-05T00:00:00.000Z"
+  }
+}

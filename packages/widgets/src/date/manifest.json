@@ -1,0 +1,14 @@
+{
+  "type": "date",
+  "version": "0.1.0",
+  "configVersion": 1,
+  "displayName": "日期",
+  "description": "显示服务端生成图片时的日期和星期。",
+  "category": "time",
+  "supportedSizes": [
+    { "columns": 2, "rows": 1 },
+    { "columns": 4, "rows": 1 },
+    { "columns": 2, "rows": 2 }
+  ],
+  "defaultSize": { "columns": 4, "rows": 1 }
+}

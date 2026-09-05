@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["alias", "connectionId", "connectionRevision", "quotaGroupId", "lowBalanceThreshold"],
+  "properties": {
+    "alias": { "type": "string", "pattern": "^[\\s\\S]{0,40}$" },
+    "connectionId": { "type": "string", "pattern": "^[\\s\\S]{1,120}$" },
+    "connectionRevision": { "type": "integer", "minimum": 1 },
+    "quotaGroupId": { "type": "string", "pattern": "^[\\s\\S]{1,120}$" },
+    "lowBalanceThreshold": { "type": "integer", "minimum": 1, "maximum": 99 }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@ink-stack/widgets",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./render": {
+      "types": "./dist/render.d.ts",
+      "import": "./dist/render.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./registry.server": {
+      "types": "./dist/registry.server.d.ts",
+      "import": "./dist/registry.server.js"
+    },
+    "./codex-usage/normalize": {
+      "types": "./dist/codex-usage/normalize.d.ts",
+      "import": "./dist/codex-usage/normalize.js"
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "generate": "node scripts/generate-validators.mjs",
+    "build": "npm run clean && npm run generate && tsc -p tsconfig.json",
+    "test": "npm run generate && vitest run src",
+    "typecheck": "npm run generate && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ink-stack/shared": "0.1.0"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
+}

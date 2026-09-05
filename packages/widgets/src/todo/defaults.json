@@ -1,0 +1,10 @@
+{
+  "title": "待办",
+  "items": [
+    { "id": "write", "text": "写一点墨栈", "done": false },
+    { "id": "review", "text": "检查预览 PNG", "done": false },
+    { "id": "tea", "text": "泡茶", "done": true }
+  ],
+  "sort": "open-first",
+  "maxVisible": 8
+}

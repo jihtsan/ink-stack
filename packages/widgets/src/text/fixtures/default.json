@@ -1,0 +1,11 @@
+{
+  "config": {
+    "title": "墨栈",
+    "text": "中文长文本用于验证换行、裁剪和 SVG 转义。",
+    "size": "medium",
+    "align": "left",
+    "showBorder": true,
+    "showBackground": true
+  },
+  "size": { "columns": 4, "rows": 1 }
+}

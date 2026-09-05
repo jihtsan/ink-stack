@@ -1,0 +1,12 @@
+import { Resvg } from '@resvg/resvg-js';
+import sharp from 'sharp';
+import {createRequire} from 'node:module';
+const Database=createRequire(new URL('../apps/server/package.json',import.meta.url))('better-sqlite3');
+import {mkdirSync,writeFileSync} from 'node:fs';
+const svg='<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><g font-family="Noto Sans CJK SC" fill="black"><text x="30" y="70" font-size="32">墨栈 · 中文渲染验证</text><text x="30" y="115" font-size="22">星期六　待办：阅读与散步</text><rect x="24" y="150" width="264" height="490" fill="none" stroke="black"/><text x="45" y="195" font-size="24">CODEX · 模拟样例</text><text x="45" y="250" font-size="23">剩余 75%</text><rect x="45" y="280" width="165" height="15"/><text x="45" y="340" font-size="18">采集时间示意</text><text x="30" y="730" font-size="21">中文、数字、标点与长文本。</text></g></svg>';
+const png=await sharp(new Resvg(svg,{font:{fontFiles:['assets/fonts/NotoSansCJKsc-Regular.otf'],loadSystemFonts:false}}).render().asPng()).flatten({background:'white'}).removeAlpha().greyscale().toColourspace('b-w').png().toBuffer();
+mkdirSync('data/probes',{recursive:true});writeFileSync('data/probes/chinese.png',png);
+const metadata=await sharp(png).metadata();
+if(metadata.width!==600||metadata.height!==800||metadata.channels!==1||metadata.hasAlpha)throw Error('PNG contract failed');
+const db=new Database(':memory:');db.exec('CREATE TABLE probe(id INTEGER)');db.close();
+console.log(JSON.stringify({node:process.version,width:metadata.width,height:metadata.height,channels:metadata.channels,space:metadata.space,hasAlpha:metadata.hasAlpha,sqlite:'loaded'}));

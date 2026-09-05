@@ -1,0 +1,15 @@
+{
+  "type": "text",
+  "version": "0.1.0",
+  "configVersion": 1,
+  "displayName": "文字",
+  "description": "固定文字、标题、备注或提示语。",
+  "category": "content",
+  "supportedSizes": [
+    { "columns": 2, "rows": 1 },
+    { "columns": 4, "rows": 1 },
+    { "columns": 2, "rows": 2 },
+    { "columns": 4, "rows": 2 }
+  ],
+  "defaultSize": { "columns": 4, "rows": 1 }
+}

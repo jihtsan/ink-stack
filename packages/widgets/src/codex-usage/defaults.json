@@ -1,0 +1,7 @@
+{
+  "alias": "工作账号",
+  "connectionId": "local-codex-app-server",
+  "connectionRevision": 1,
+  "quotaGroupId": "codex",
+  "lowBalanceThreshold": 20
+}
