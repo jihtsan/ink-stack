@@ -30,7 +30,10 @@ export async function installAuth(app: FastifyInstance, password: string, origin
     if (sessions.size >= 50) sessions.delete(sessions.keys().next().value!);
     const token = randomBytes(32).toString('base64url');
     sessions.set(digest(token), now + 12*3600_000);
-    reply.setCookie('ink_session',token,{httpOnly:true,sameSite:'strict',secure,path:'/',maxAge:12*3600});
+    // OAuth returns through a top-level cross-site GET. Lax preserves that
+    // callback cookie while the callback still relies on the session-bound
+    // state, exact redirect URI, and Origin checks for state-changing APIs.
+    reply.setCookie('ink_session',token,{httpOnly:true,sameSite:'lax',secure,path:'/',maxAge:12*3600});
     return {ok:true};
   });
   app.get('/api/session', async()=>({authenticated:true}));

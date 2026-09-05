@@ -1,5 +1,6 @@
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import type { LookupAddress, LookupOptions } from "node:dns";
 import type { IncomingMessage } from "node:http";
 import type { Readable } from "node:stream";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
@@ -73,6 +74,20 @@ function isAllowedPath(pathname: string): boolean {
     || /^\/weather\/v1\/daily\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname);
 }
 
+/**
+ * Node 24 may ask a custom lookup function for all addresses even when the
+ * caller did not set `all` explicitly. In that case the callback must receive
+ * an array of `{address, family}` records rather than a bare address string.
+ */
+export function pinnedLookup(address: string) {
+  const family = isIP(address);
+  if (!family) throw new Error("invalid_pinned_address");
+  return (_hostname: string, lookupOptions: LookupOptions, callback: (error: NodeJS.ErrnoException | null, result: string | LookupAddress[], resultFamily?: number) => void) => {
+    if (lookupOptions.all) callback(null, [{address, family}]);
+    else callback(null, address, family);
+  };
+}
+
 async function readJsonResponse(options: {
   url: URL;
   address: string;
@@ -97,7 +112,7 @@ async function readJsonResponse(options: {
       headers: options.headers,
       // The DNS result was checked immediately before connecting. Supplying
       // the fixed answer avoids a second resolver decision in the socket.
-      lookup: (_hostname, _lookupOptions, callback) => callback(null, options.address, isIP(options.address) === 6 ? 6 : 4),
+      lookup: pinnedLookup(options.address),
       servername: options.url.hostname,
       rejectUnauthorized: true,
       setHost: true

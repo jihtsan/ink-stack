@@ -18,9 +18,10 @@ async function setup(extra:Partial<AppOptions>={}){
  resources.push({app,directory});
  const login=await app.app.inject({method:'POST',url:'/api/session',headers:{origin},payload:{password}});
  expect(login.statusCode).toBe(200);
- const cookie=login.headers['set-cookie']!.toString().split(';')[0]!;
+ const loginCookie=login.headers['set-cookie']!.toString();
+ const cookie=loginCookie.split(';')[0]!;
  const request=(method:'GET'|'PUT'|'POST'|'DELETE',url:string,payload?:unknown)=>app.app.inject({method,url,headers:{origin,cookie},payload:payload as never});
- return {...app,directory,request};
+ return {...app,directory,request,loginCookie};
 }
 function addText(d:DashboardDraft,text='墨栈中文测试',row=0){const definition=getWidgetDefinition('text')!;d.widgets.push({id:`text-${row}`,type:'text',configVersion:1,column:0,row,columnSpan:2,rowSpan:1,config:{...structuredClone(definition.defaults),text}});return d;}
 async function publish(ctx:Awaited<ReturnType<typeof setup>>,d:DashboardDraft){const save=await ctx.request('PUT','/api/dashboards/main/draft',{dashboard:d,baseRevision:ctx.service.state().draftRevision});expect(save.statusCode).toBe(200);const r=await ctx.request('POST','/api/dashboards/main/publish',{draftRevision:save.json().draftRevision});await ctx.service.idle();expect(ctx.service.job(r.json().id).status).toBe('succeeded');return r.json().id as string;}
@@ -28,6 +29,7 @@ async function publish(ctx:Awaited<ReturnType<typeof setup>>,d:DashboardDraft){c
 describe('management, rendering and delivery',()=>{
  it('protects management, origin and separate display token; rejects unregistered secrets',async()=>{
   const c=await setup();
+  expect(c.loginCookie).toMatch(/HttpOnly/);expect(c.loginCookie).toMatch(/SameSite=Lax/);expect(c.loginCookie).toMatch(/Path=\//);
   expect((await c.app.inject({url:'/api/dashboards/main'})).statusCode).toBe(401);
   expect((await c.app.inject({method:'POST',url:'/api/session',payload:{password},headers:{origin:'http://evil.example'}})).statusCode).toBe(403);
   expect((await c.request('POST','/api/data-sources',{name:'bad',type:'codex-local',settings:{apiKey:'secret'}})).statusCode).toBe(400);
@@ -146,13 +148,17 @@ describe('management, rendering and delivery',()=>{
   const c=await setup({masterKey:Buffer.alloc(32,8),googleHttp});
   const appConfig=await c.request('PUT','/api/google/app',{clientId:'1234567890.apps.googleusercontent.com',clientSecret:'GOOGLE_CLIENT_SECRET_SENTINEL'});expect(appConfig.statusCode).toBe(200);expect(appConfig.json()).toMatchObject({configured:true});expect(JSON.stringify(appConfig.json())).not.toContain('GOOGLE_CLIENT_SECRET_SENTINEL');
   const start=await c.request('GET','/api/google/oauth/start');expect(start.statusCode).toBe(200);const authorization=new URL(start.json().url);expect(authorization.origin).toBe('https://accounts.google.com');expect(authorization.searchParams.get('access_type')).toBe('offline');expect(authorization.searchParams.get('response_type')).toBe('code');expect(authorization.searchParams.get('scope')).toContain('calendar.readonly');
-  const callback=await c.request('GET',`/api/google/oauth/callback?state=${encodeURIComponent(authorization.searchParams.get('state')!)}&code=AUTHORIZATION_CODE`);expect(callback.statusCode).toBe(302);expect(callback.headers.location).toBe('/?google=connected');
+  const otherLogin=await c.app.inject({method:'POST',url:'/api/session',headers:{origin},payload:{password}});const otherCookie=otherLogin.headers['set-cookie']!.toString().split(';')[0]!;
+  const mismatched=await c.app.inject({method:'GET',url:`/api/google/oauth/callback?state=${encodeURIComponent(authorization.searchParams.get('state')!)}&code=AUTHORIZATION_CODE`,headers:{cookie:otherCookie}});expect(mismatched.statusCode).toBe(302);expect(mismatched.headers.location).toBe('/?google=error');
+  const invalidState=await c.request('GET','/api/google/oauth/callback?state=invalid-state&code=AUTHORIZATION_CODE');expect(invalidState.statusCode).toBe(302);expect(invalidState.headers.location).toBe('/?google=error');
+  const retry=await c.request('GET','/api/google/oauth/start');const retryAuthorization=new URL(retry.json().url);
+  const callback=await c.request('GET',`/api/google/oauth/callback?state=${encodeURIComponent(retryAuthorization.searchParams.get('state')!)}&code=AUTHORIZATION_CODE`);expect(callback.statusCode).toBe(302);expect(callback.headers.location).toBe('/?google=connected');
   const status=await c.request('GET','/api/google/status');expect(status.json().connections).toMatchObject([{type:'google-calendar-oauth',revision:1,configured:true}]);expect(JSON.stringify(status.json())).not.toMatch(/ACCESS_TOKEN|REFRESH_TOKEN|CLIENT_SECRET/);
   const connection=status.json().connections[0];const calendars=await c.request('GET',`/api/google/connections/${connection.id}/calendars?revision=${connection.revision}`);expect(calendars.json()).toEqual({calendars:[{id:'primary',summary:'我的日历',primary:true,timeZone:'Asia/Shanghai'}]});
   const calendarDefinition=getWidgetDefinition('calendar')!;const dashboard=c.service.state().draft;dashboard.widgets.push({id:'calendar-live',type:'calendar',configVersion:1,column:0,row:0,columnSpan:4,rowSpan:3,config:{...structuredClone(calendarDefinition.defaults),connectionId:connection.id,connectionRevision:connection.revision,calendarIds:['primary']}});
   const preview=await c.request('POST','/api/dashboards/main/preview',{dashboard,editorRevision:10});expect(preview.statusCode).toBe(202);await c.service.idle();expect(c.service.job(preview.json().id)).toMatchObject({status:'succeeded'});const dataStatus=c.db.prepare('SELECT data_status FROM snapshots WHERE id=?').get(preview.json().id) as {data_status:string};expect(JSON.parse(dataStatus.data_status)).toMatchObject({'calendar-live':{status:'fresh'}});
   expect(calls.some((call)=>call.url.includes('/events?')&&call.headers?.authorization==='Bearer ACCESS_TOKEN_SENTINEL')).toBe(true);expect(calls.find((call)=>call.url.includes('/events?'))?.url).toContain('singleEvents=true');
-  const replay=await c.request('GET',`/api/google/oauth/callback?state=${encodeURIComponent(authorization.searchParams.get('state')!)}&code=AUTHORIZATION_CODE`);expect(replay.statusCode).toBe(302);expect(replay.headers.location).toBe('/?google=error');
+  const replay=await c.request('GET',`/api/google/oauth/callback?state=${encodeURIComponent(retryAuthorization.searchParams.get('state')!)}&code=AUTHORIZATION_CODE`);expect(replay.statusCode).toBe(302);expect(replay.headers.location).toBe('/?google=error');
  });
  it('refreshes only the published dashboard on the configured cycle and reports scheduler state',async()=>{
   const seen:string[]=[];const c=await setup({renderer:{render:async input=>{seen.push(String(input.dashboard.widgets[0]?.config.text));return sharp({create:{width:600,height:800,channels:3,background:'white'}}).toColourspace('b-w').png().toBuffer();},close:async()=>{}}});
