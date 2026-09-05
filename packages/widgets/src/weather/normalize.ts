@@ -1,4 +1,4 @@
-import type { WeatherConfig, WeatherAirQuality, WeatherEnvelope, WeatherError, WeatherHourlyForecast, WeatherSnapshot } from "./types.js";
+import type { WeatherConfig, WeatherAirQuality, WeatherEnvelope, WeatherError, WeatherHourlyForecast, WeatherLocation, WeatherSnapshot } from "./types.js";
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -31,14 +31,36 @@ export function qweatherResponseError(value: unknown): WeatherError | undefined 
 }
 
 /** Choose only an unambiguous location. Never silently select the first same-name city. */
-export function normalizeWeatherLocation(value: unknown): { id: string; name: string; latitude?: number; longitude?: number } | undefined {
+export function normalizeWeatherLocation(value: unknown): WeatherLocation | undefined {
+  const locations = normalizeWeatherLocations(value);
+  return locations.length === 1 ? locations[0] : undefined;
+}
+
+/** Keep only complete, display-safe GeoAPI results for an explicit user choice. */
+export function normalizeWeatherLocations(value: unknown): WeatherLocation[] {
   const body = record(value);
-  if (qweatherResponseError(body) || !Array.isArray(body.location) || body.location.length !== 1) return undefined;
-  const item = record(body.location[0]);
-  const latitude = number(item.lat, -90, 90);
-  const longitude = number(item.lon, -180, 180);
-  return typeof item.id === "string" && /^[a-zA-Z0-9_-]{1,40}$/.test(item.id) && label(item.name)
-    ? { id: item.id, name: label(item.name), ...(latitude === undefined ? {} : { latitude }), ...(longitude === undefined ? {} : { longitude }) } : undefined;
+  if (qweatherResponseError(body) || !Array.isArray(body.location)) return [];
+  return body.location.slice(0, 20).flatMap((raw): WeatherLocation[] => {
+    const item = record(raw);
+    const latitude = number(item.lat, -90, 90);
+    const longitude = number(item.lon, -180, 180);
+    if (typeof item.id !== "string" || !/^[a-zA-Z0-9_-]{1,40}$/.test(item.id)
+      || !label(item.name) || latitude === undefined || longitude === undefined) return [];
+    const adm1 = label(item.adm1);
+    const adm2 = label(item.adm2);
+    const country = label(item.country);
+    const rank = number(item.rank, 0, 1000);
+    return [{
+      id: item.id,
+      name: label(item.name),
+      latitude,
+      longitude,
+      ...(adm1 ? { adm1 } : {}),
+      ...(adm2 ? { adm2 } : {}),
+      ...(country ? { country } : {}),
+      ...(rank === undefined ? {} : { rank })
+    }];
+  });
 }
 
 /** Select known fields, preserve missing values, and reject incomplete current observations. */

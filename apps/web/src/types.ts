@@ -1,8 +1,8 @@
 import type { DashboardDraft, JsonObject, WidgetInstance, WidgetSize } from "@ink-stack/shared";
 import type { PublicWidgetDefinition } from "@ink-stack/widgets";
-import type { WeatherEnvelope } from "@ink-stack/widgets/weather/types";
+import type { WeatherEnvelope, WeatherLocation } from "@ink-stack/widgets/weather/types";
 
-export type { DashboardDraft, JsonObject, PublicWidgetDefinition, WidgetInstance, WidgetSize };
+export type { DashboardDraft, JsonObject, PublicWidgetDefinition, WeatherLocation, WidgetInstance, WidgetSize };
 
 export type WidgetType = "text" | "date" | "todo" | "codex-usage" | "calendar" | "weather" | "image";
 
@@ -57,6 +57,7 @@ export type WeatherConfig = JsonObject & {
   title: string;
   locationMode: "city" | "coordinates";
   city: string;
+  locationId?: string;
   latitude: number;
   longitude: number;
   units: "m" | "i";
@@ -216,6 +217,13 @@ export type WeatherTestResponse = {
       primaryPollutant?: string;
     };
   };
+};
+
+export type WeatherLocationSearchResponse = {
+  status: "ok" | "unavailable" | "unauthenticated";
+  reason?: "connection" | "authentication" | "location" | "timeout" | "network" | "response";
+  message: string;
+  locations: WeatherLocation[];
 };
 
 export type WeatherConnectionDraft = {

@@ -29,6 +29,7 @@ const emptySettings=objectSchema({});
 const connectionBody=objectSchema({name:{type:'string',minLength:1,maxLength:80},type:{const:'codex-local',type:'string'},settings:emptySettings},['name','type','settings']);
 const weatherConnectionBody=objectSchema({name:{type:'string',minLength:1,maxLength:80},apiHost:{type:'string',minLength:1,maxLength:512},authMode:{type:'string',enum:['jwt','api-key']},apiKey:{type:'string',minLength:1,maxLength:8192}},['name','apiHost','authMode','apiKey']);
 const weatherTestBody=objectSchema({connectionId:{type:'string',maxLength:80},connectionRevision:integer,config:{type:'object',additionalProperties:true},apiHost:{type:'string',maxLength:512},authMode:{type:'string',enum:['jwt','api-key']},apiKey:{type:'string',maxLength:8192}},['config']);
+const weatherLocationBody=objectSchema({connectionId:{type:'string',maxLength:80},connectionRevision:integer,query:{type:'string',minLength:1,maxLength:80},apiHost:{type:'string',maxLength:512},authMode:{type:'string',enum:['jwt','api-key']},apiKey:{type:'string',maxLength:8192}},['query']);
 
 export async function createApp(options:AppOptions){
   const app=Fastify({logger:false,bodyLimit:128*1024,ajv:{customOptions:{coerceTypes:false,removeAdditional:false,useDefaults:false,allErrors:false}}});
@@ -99,6 +100,17 @@ export async function createApp(options:AppOptions){
     return {ok:true};
   });
   app.get('/api/weather-connections',async()=>({connections:connections.listWeather()}));
+  app.post<{Body:{connectionId?:string;connectionRevision?:number;query:string;apiHost?:string;authMode?:'jwt'|'api-key';apiKey?:string}}>('/api/weather-connections/locations',{schema:{body:weatherLocationBody},config:{rateLimit:{max:8,timeWindow:'1 minute'}}},async r=>{
+    let result;
+    if(r.body.connectionId) {
+      if(!connections.getWeatherPublic(r.body.connectionId,r.body.connectionRevision??1)) throw new HttpError(400,'connection_reference_invalid');
+      result=await connections.lookupWeatherLocations(r.body.query,{connectionId:r.body.connectionId,connectionRevision:r.body.connectionRevision??1});
+    } else {
+      if(!r.body.apiHost||!r.body.authMode||!r.body.apiKey) throw new HttpError(400,'weather_connection_required');
+      result=await connections.lookupWeatherLocations(r.body.query,{input:{name:'temporary',apiHost:r.body.apiHost,authMode:r.body.authMode,apiKey:r.body.apiKey}});
+    }
+    return {status:result.error==='authentication'?'unauthenticated':result.error?'unavailable':'ok',reason:result.error,message:weatherLocationMessage(result),locations:result.locations};
+  });
   app.post<{Body:{name:string;apiHost:string;authMode:'jwt'|'api-key';apiKey:string}}>('/api/weather-connections',{schema:{body:weatherConnectionBody}},async(r,reply)=>{
     try { return reply.code(201).send(connections.createWeather(r.body)); }
     catch(error) {
@@ -200,5 +212,17 @@ function weatherEnvelopeMessage(envelope: import('@ink-stack/widgets/weather/typ
     case 'response': return '天气服务返回的数据格式不受支持';
     case 'connection': return '天气连接未配置或主密钥不可用';
     default: return '天气暂不可用';
+  }
+}
+
+function weatherLocationMessage(result: {locations: unknown[];error?: import('@ink-stack/widgets/weather/types').WeatherError}): string {
+  switch(result.error) {
+    case 'authentication': return '认证失败，请检查 API Key 或 JWT';
+    case 'timeout': return '位置查询超时';
+    case 'network': return '天气服务暂时无法连接';
+    case 'connection': return '天气连接未配置或不可用';
+    case 'response': return '位置数据格式异常';
+    case 'location': return '没有找到匹配的位置';
+    default: return result.locations.length ? `找到 ${result.locations.length} 个位置，请选择一个` : '没有找到匹配的位置，请更换关键词';
   }
 }

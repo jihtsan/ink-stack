@@ -2,6 +2,8 @@ export interface WeatherConfig {
   title: string;
   locationMode: "city" | "coordinates";
   city: string;
+  /** A selected GeoAPI result. When present, it avoids ambiguous city lookup. */
+  locationId?: string;
   latitude: number;
   longitude: number;
   units: "m" | "i";
@@ -19,6 +21,17 @@ export interface WeatherConfig {
   refreshSeconds: number;
   cacheTtlSeconds: number;
   maxStaleSeconds: number;
+}
+
+export interface WeatherLocation {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  adm1?: string;
+  adm2?: string;
+  country?: string;
+  rank?: number;
 }
 
 export type WeatherError = "connection" | "authentication" | "location" | "timeout" | "network" | "response";

@@ -34,6 +34,8 @@ import type {
   WeatherConfig,
   WeatherConnectionDraft,
   WeatherConnectionsResponse,
+  WeatherLocation,
+  WeatherLocationSearchResponse,
   WeatherTestResponse,
   GoogleCalendarInfo,
   GoogleStatusResponse,
@@ -460,6 +462,11 @@ function ensureNumber(value: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function withoutWeatherLocationId(value: WeatherConfig): WeatherConfig {
+  const { locationId: _locationId, ...rest } = value;
+  return rest;
+}
+
 function toJsonObject(value: JsonObject): JsonObject {
   return value;
 }
@@ -542,6 +549,8 @@ export default function App() {
   const [weatherTest, setWeatherTest] = useState<WeatherTestResponse | null>(null);
   const [weatherTestWidgetId, setWeatherTestWidgetId] = useState<string | null>(null);
   const [weatherTesting, setWeatherTesting] = useState(false);
+  const [weatherLocations, setWeatherLocations] = useState<WeatherLocationSearchResponse | null>(null);
+  const [weatherLocationsLoading, setWeatherLocationsLoading] = useState(false);
   const [imageSources, setImageSources] = useState<ImageSourcesResponse>({ sources: [] });
   const [imageSourceDraft, setImageSourceDraft] = useState({ type: "album" as ImageSource["type"], name: "我的相册", root: "" });
   const [imageList, setImageList] = useState<ImageListResponse | null>(null);
@@ -556,6 +565,7 @@ export default function App() {
   const libraryDragRef = useRef<PublicWidgetDefinition | null>(null);
   const connectionTestSeq = useRef(0);
   const weatherTestSeq = useRef(0);
+  const weatherLocationSeq = useRef(0);
   const previewRunSeq = useRef(0);
   const previewRequestedRevision = useRef<number | null>(null);
 
@@ -878,6 +888,9 @@ export default function App() {
       if (selectedWidget.type === "weather") {
         setWeatherTest(null);
         setWeatherTestWidgetId(null);
+        setWeatherLocations(null);
+        weatherLocationSeq.current += 1;
+        setWeatherLocationsLoading(false);
       }
       mutateDashboard(updateWidget(state.dashboard, selectedWidget.id, (widget) => ({ ...widget, config })));
     },
@@ -1077,6 +1090,9 @@ export default function App() {
       setWeatherConnectionDraft((current) => ({ ...current, apiKey: "" }));
       setWeatherTest(null);
       setWeatherTestWidgetId(null);
+      setWeatherLocations(null);
+      weatherLocationSeq.current += 1;
+      setWeatherLocationsLoading(false);
       if (selectedWidget?.type === "weather") {
         const weatherConfig = selectedWidget.config as WeatherConfig;
         mutateDashboard(
@@ -1133,6 +1149,43 @@ export default function App() {
       dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "上传图片失败" } });
     }
   }, [imageSources.sources, loadImageList]);
+
+  const searchWeatherLocations = useCallback(async (config: WeatherConfig) => {
+    const query = config.city.trim();
+    if (!query) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请先填写城市或 Location ID" } });
+      return;
+    }
+    const saved = weatherSources.connections.find((connection) => connection.id === config.connectionId);
+    if (config.connectionId && !saved) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "天气连接版本已不存在，请重新选择连接" } });
+      return;
+    }
+    if (!saved && (!weatherConnectionDraft.apiHost.trim() || !weatherConnectionDraft.apiKey)) {
+      dispatch({ type: "setNotice", notice: { kind: "warning", message: "请先填写 API Host 和 API Key / JWT" } });
+      return;
+    }
+    const seq = weatherLocationSeq.current + 1;
+    weatherLocationSeq.current = seq;
+    setWeatherLocationsLoading(true);
+    setWeatherLocations(null);
+    try {
+      const response = await api.searchWeatherLocations(saved
+        ? { connectionId: saved.id, connectionRevision: saved.revision, query }
+        : { query, apiHost: weatherConnectionDraft.apiHost.trim(), authMode: weatherConnectionDraft.authMode, apiKey: weatherConnectionDraft.apiKey });
+      if (seq !== weatherLocationSeq.current) return;
+      setWeatherLocations(response);
+      dispatch({
+        type: "setNotice",
+        notice: { kind: response.status === "ok" && response.locations.length > 0 ? "success" : "warning", message: response.message }
+      });
+    } catch (error) {
+      if (seq !== weatherLocationSeq.current) return;
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "位置查询失败" } });
+    } finally {
+      if (seq === weatherLocationSeq.current) setWeatherLocationsLoading(false);
+    }
+  }, [weatherConnectionDraft, weatherSources.connections]);
 
   const testWeatherConnection = useCallback(async (config: WeatherConfig) => {
     if (config.locationMode === "city" && !config.city.trim()) {
@@ -1616,7 +1669,7 @@ export default function App() {
           </> : <>
             <PanelHeader title="相关属性" subtitle={`${selectedDefinition.manifest.displayName} · ${selectedWidget.columnSpan} × ${selectedWidget.rowSpan}`} />
             <WidgetInspector widget={selectedWidget} definition={selectedDefinition} issue={selectedIssue?.message ?? null} onMove={moveSelected} onResize={resizeSelected} onDelete={deleteWidget} onDuplicate={duplicateWidget} />
-            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} weatherSources={weatherSources} weatherConnectionDraft={weatherConnectionDraft} onWeatherConnectionDraftChange={setWeatherConnectionDraft} onCreateWeatherConnection={createWeatherConnection} onRefreshWeatherConnections={refreshWeatherSources} weatherTest={weatherTest} weatherTesting={weatherTesting} onTestWeatherConnection={testWeatherConnection} imageSources={imageSources} imageSourceDraft={imageSourceDraft} onImageSourceDraftChange={setImageSourceDraft} onCreateImageSource={createImageSource} imageList={imageList} onLoadImageList={loadImageList} onUploadImage={uploadImage} googleStatus={googleStatus} googleCalendars={googleCalendars} onClearGoogleCalendars={() => setGoogleCalendars([])} googleAppDraft={googleAppDraft} onGoogleAppDraftChange={setGoogleAppDraft} onSaveGoogleApp={saveGoogleApp} onStartGoogleOAuth={startGoogleOAuth} onLoadGoogleCalendars={loadGoogleCalendars} onRefreshGoogleStatus={refreshGoogleStatus} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
+            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} weatherSources={weatherSources} weatherConnectionDraft={weatherConnectionDraft} onWeatherConnectionDraftChange={setWeatherConnectionDraft} onCreateWeatherConnection={createWeatherConnection} onRefreshWeatherConnections={refreshWeatherSources} weatherTest={weatherTest} weatherTesting={weatherTesting} onTestWeatherConnection={testWeatherConnection} weatherLocations={weatherLocations} weatherLocationsLoading={weatherLocationsLoading} onSearchWeatherLocations={searchWeatherLocations} imageSources={imageSources} imageSourceDraft={imageSourceDraft} onImageSourceDraftChange={setImageSourceDraft} onCreateImageSource={createImageSource} imageList={imageList} onLoadImageList={loadImageList} onUploadImage={uploadImage} googleStatus={googleStatus} googleCalendars={googleCalendars} onClearGoogleCalendars={() => setGoogleCalendars([])} googleAppDraft={googleAppDraft} onGoogleAppDraftChange={setGoogleAppDraft} onSaveGoogleApp={saveGoogleApp} onStartGoogleOAuth={startGoogleOAuth} onLoadGoogleCalendars={loadGoogleCalendars} onRefreshGoogleStatus={refreshGoogleStatus} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
           </>}
         </aside>
       </section>
@@ -1768,6 +1821,9 @@ function ConfigInspector({
   weatherTest,
   weatherTesting,
   onTestWeatherConnection,
+  weatherLocations,
+  weatherLocationsLoading,
+  onSearchWeatherLocations,
   imageSources,
   imageSourceDraft,
   onImageSourceDraftChange,
@@ -1804,6 +1860,9 @@ function ConfigInspector({
   weatherTest: WeatherTestResponse | null;
   weatherTesting: boolean;
   onTestWeatherConnection: (config: WeatherConfig) => void;
+  weatherLocations: WeatherLocationSearchResponse | null;
+  weatherLocationsLoading: boolean;
+  onSearchWeatherLocations: (config: WeatherConfig) => void;
   imageSources: ImageSourcesResponse;
   imageSourceDraft: { type: ImageSource["type"]; name: string; root: string };
   onImageSourceDraftChange: (draft: { type: ImageSource["type"]; name: string; root: string }) => void;
@@ -1945,8 +2004,13 @@ function ConfigInspector({
       <section className="inspector-section">
         <SectionTitle title="显示" />
         <TextInput label="标题" value={weather.title} onChange={(title) => onChange(toJsonObject({ ...weather, title }))} />
-        <SelectInput label="位置方式" value={weather.locationMode} options={[["city", "城市或 Location ID"], ["coordinates", "经纬度"]]} onChange={(locationMode) => onChange(toJsonObject({ ...weather, locationMode: locationMode as WeatherConfig["locationMode"] }))} />
-        {weather.locationMode === "city" ? <TextInput label="城市 / Location ID" value={weather.city} onChange={(city) => onChange(toJsonObject({ ...weather, city }))} /> : <div className="field-grid two"><label>纬度<input type="number" min={-90} max={90} step="any" value={weather.latitude} onChange={(event) => onChange(toJsonObject({ ...weather, latitude: ensureNumber(event.currentTarget.value, weather.latitude) }))} /></label><label>经度<input type="number" min={-180} max={180} step="any" value={weather.longitude} onChange={(event) => onChange(toJsonObject({ ...weather, longitude: ensureNumber(event.currentTarget.value, weather.longitude) }))} /></label></div>}
+        <SelectInput label="位置方式" value={weather.locationMode} options={[["city", "城市 / 授权位置"], ["coordinates", "经纬度"]]} onChange={(locationMode) => onChange(toJsonObject({ ...(locationMode === "coordinates" ? withoutWeatherLocationId(weather) : weather), locationMode: locationMode as WeatherConfig["locationMode"] }))} />
+        {weather.locationMode === "city" ? <TextInput label="搜索城市 / Location ID" value={weather.city} onChange={(city) => onChange(toJsonObject({ ...withoutWeatherLocationId(weather), city }))} /> : <div className="field-grid two"><label>纬度<input type="number" min={-90} max={90} step="any" value={weather.latitude} onChange={(event) => onChange(toJsonObject({ ...withoutWeatherLocationId(weather), latitude: ensureNumber(event.currentTarget.value, weather.latitude) }))} /></label><label>经度<input type="number" min={-180} max={180} step="any" value={weather.longitude} onChange={(event) => onChange(toJsonObject({ ...withoutWeatherLocationId(weather), longitude: ensureNumber(event.currentTarget.value, weather.longitude) }))} /></label></div>}
+        <SectionTitle title="位置授权" />
+        <p className="muted-copy">先查找位置，再选择一个明确的 Location ID。选中后会固化名称与经纬度，天气请求不再使用模糊城市名。</p>
+        {weather.locationMode === "city" ? <div className="split-actions"><button type="button" className="ghost-button" onClick={() => onSearchWeatherLocations(weather)} disabled={weatherLocationsLoading}>{weatherLocationsLoading ? "查询中" : "查找授权位置"}</button></div> : null}
+        {weather.locationId ? <div className="weather-location-card" aria-label={`已授权位置 ${weather.city}`}><strong>{weather.city || "已选择位置"}</strong><span>Location ID：{weather.locationId}</span><small>纬度 {weather.latitude.toFixed(5)} · 经度 {weather.longitude.toFixed(5)}</small><button type="button" className="ghost-button" onClick={() => onChange(toJsonObject(withoutWeatherLocationId(weather)))}>清除授权位置</button></div> : <p className="muted-copy">尚未选择明确位置；直接测试“北京”可能会因候选过多而失败。</p>}
+        {weatherLocations ? <div className="weather-location-results" aria-live="polite"><strong>{weatherLocations.message}</strong>{weatherLocations.locations.map((location: WeatherLocation) => <button type="button" className="weather-location-option" key={location.id} onClick={() => onChange(toJsonObject({ ...weather, locationMode: "city", locationId: location.id, city: location.name, latitude: location.latitude, longitude: location.longitude }))} aria-label={`选择位置 ${location.name} · ${location.id}`}><span>{location.name}</span><small>{[location.adm1, location.adm2, location.country].filter(Boolean).join(" · ") || "位置"} · Location ID {location.id}</small><small>纬度 {location.latitude.toFixed(5)} · 经度 {location.longitude.toFixed(5)}</small></button>)}</div> : null}
         <SelectInput label="单位" value={weather.units} options={[["m", "公制（°C）"], ["i", "英制（°F）"]]} onChange={(units) => onChange(toJsonObject({ ...weather, units: units as WeatherConfig["units"] }))} />
         <label>
           已保存天气连接

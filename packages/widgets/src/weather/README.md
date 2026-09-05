@@ -4,7 +4,7 @@
 
 ## 配置与尺寸
 
-- `locationMode` 为 city 或 coordinates；`city` 接受城市名或 Location ID。GeoAPI 有多个候选时提示使用明确 ID 或经纬度，不自动选第一个。
+- `locationMode` 为 city 或 coordinates；`city` 是位置搜索词或显示名称。城市模式应先调用服务端 `lookupWeatherLocations`，从候选中选择一个并保存可选的 `locationId`、名称和纬度/经度；GeoAPI 有多个候选时不自动选第一个。若没有 `locationId`，旧配置仍按严格的单候选规则运行。
 - `latitude/longitude` 为纬度/经度；请求按经度在前并四舍五入到两位小数。支持零值与负值。
 - `units=m|i` 分别为 °C、km/h 和 °F、mph，返回值按请求单位标记，不重复换算。
 - `title`、`showTemperature/showCondition/showFeelsLike/showHumidity/showWind/showForecast/showUpdatedAt` 控制显示。缺失可选数值显示 —，真实零值仍显示 0。
@@ -39,7 +39,9 @@ API Host 使用控制台分配的域名，例如 h2a9cf3mhs.xy.qweatherapi.com�
 - 执行禁止重定向、解压后响应体上限、取消信号和超时。
 - HTTP 错误转为 `{ code: String(status) }`；不返回或记录原始错误正文、header、token、秘密 URL。
 
-采集顺序为城市解析、当前天气、可选扩展数据；v1 按经纬度请求当前接口，再按 `forecastMode` 请求逐日、逐小时或空气质量接口，并使用接口的本地时间。扩展接口返回错误时保留有效当前天气并在对应扩展区显示不可用状态，总期限超时则回退缓存。缓存键覆盖连接 ID/版本、认证修订、身份、Host、认证模式、秘密引用、地点、单位、预报开关和模式；键本身只留服务端。凭据轮换必须递增 authRevision，身份切换失效旧缓存。上游观测倒退时保留较新的旧快照。
+采集顺序为解析明确位置（未选择时才查询城市）、当前天气、可选扩展数据；v1 按固化经纬度请求当前接口，再按 `forecastMode` 请求逐日、逐小时或空气质量接口，并使用接口的本地时间；v7 使用 Location ID。扩展接口返回错误时保留有效当前天气并在对应扩展区显示不可用状态，总期限超时则回退缓存。缓存键覆盖连接 ID/版本、认证修订、身份、Host、认证模式、秘密引用、地点、单位、预报开关和模式；键本身只留服务端。凭据轮换必须递增 authRevision，身份切换失效旧缓存。上游观测倒退时保留较新的旧快照。
+
+`lookupWeatherLocations` 仅用于编辑器授权位置选择，不保存搜索请求或候选结果；它调用固定的 GeoAPI 城市查询路径，返回最多 20 个完整候选的 Location ID、名称、管理区、国家、纬度和经度。候选选中后，前端把 `locationId` 与经纬度一起写入当前草稿，用户点击“保存草稿”后持久化。
 
 本组件没有后台调度、全局缓存或隐式网络客户端。应用已负责受控传输、连接仓库、计划采集、持久化缓存与同键请求合并。设备 PNG GET 不调用采集；草稿或连接测试不发布图片。
 
@@ -47,7 +49,7 @@ API Host 使用控制台分配的域名，例如 h2a9cf3mhs.xy.qweatherapi.com�
 
 1. 和风控制台 API Host、开通 GeoAPI/当前天气/逐日预报/逐小时预报/空气质量的项目权限及调用额度。
 2. 服务端 API Key 秘密引用，或 JWT 的项目/凭据标识、私钥、签发与刷新实现。
-3. 连接 ID/版本、认证修订、稳定来源身份及明确城市 ID 或经纬度。
+3. 连接 ID/版本、认证修订、稳定来源身份及通过位置选择得到的明确 Location ID，或手动填写的经纬度。
 4. 实际验证账号权限、单位、时区、认证过期/轮换、限频和缓存隔离；Kindle 型号/固件与真实显示另验。
 
 当前应用默认保存 apiVersion=v1，调用 `/geo/v2/city/lookup`、`/weather/v1/current/{latitude}/{longitude}`，并按模式调用 `/weather/v1/daily/{latitude}/{longitude}`、`/weather/v1/hourly/{latitude}/{longitude}` 或 `/airquality/v1/current/{latitude}/{longitude}`；旧 fixture/直接适配器调用仍兼容 v7 形状，v7 扩展逐小时使用 `/v7/weather/24h`。v1 使用摄氏度、m/s 和 0–1 湿度，应用在英制显示时转换为华氏度、mph 和百分比。
