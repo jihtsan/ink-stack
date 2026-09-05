@@ -1,12 +1,15 @@
 import { computePixelRect } from "./grid";
 import { StudioIcon } from "./StudioIcon";
-import { renderTextWidget, renderDateWidget, renderTodoWidget } from "@ink-stack/widgets/render";
+import { renderTextWidget, renderDateWidget, renderTodoWidget, renderCalendarWidget, renderWeatherWidget, renderImageWidget } from "@ink-stack/widgets/render";
 import type {
+  CalendarConfig,
   CodexUsageConfig,
   DashboardDraft,
   DateConfig,
+  ImageConfig,
   TextConfig,
   TodoConfig,
+  WeatherConfig,
   WidgetInstance
 } from "./types";
 import type { LayoutIssue } from "./grid";
@@ -159,7 +162,7 @@ function WidgetCard({
 
 function WidgetPreview({ dashboard, widget, previewImageUrl }: { dashboard: DashboardDraft; widget: WidgetInstance; previewImageUrl?: string | null }) {
   const rect = computePixelRect(dashboard.screen, dashboard.grid, widget);
-  const names: Record<string, string> = { text: "文字", date: "日期", todo: "待办", "codex-usage": "Codex 额度" };
+  const names: Record<string, string> = { text: "文字", date: "日期", todo: "待办", "codex-usage": "Codex 额度", calendar: "日历与日程", weather: "和风天气", image: "图片相册" };
   if (previewImageUrl) return <div className="widget-png-crop"><img src={previewImageUrl} alt={`${names[widget.type] ?? widget.type}的服务端预览`} draggable={false} style={{ width: `${dashboard.screen.width / rect.width * 100}%`, height: `${dashboard.screen.height / rect.height * 100}%`, left: `${-rect.x / rect.width * 100}%`, top: `${-rect.y / rect.height * 100}%` }} /></div>;
   const context = { rect, screen: dashboard.screen, timeZone: dashboard.timeZone, now: new Date().toISOString() };
   let body: string;
@@ -184,6 +187,15 @@ function WidgetPreview({ dashboard, widget, previewImageUrl }: { dashboard: Dash
         </div>
       );
     }
+    case "calendar":
+      body = renderCalendarWidget({ instance: { ...widget, config: widget.config as CalendarConfig }, context });
+      break;
+    case "weather":
+      body = renderWeatherWidget({ instance: { ...widget, config: widget.config as WeatherConfig }, context });
+      break;
+    case "image":
+      body = renderImageWidget({ instance: { ...widget, config: widget.config as ImageConfig }, context });
+      break;
     default: return null;
   }
   // Built-in renderers escape every config string; no uploaded SVG or code is accepted.

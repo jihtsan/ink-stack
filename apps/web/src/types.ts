@@ -3,7 +3,7 @@ import type { PublicWidgetDefinition } from "@ink-stack/widgets";
 
 export type { DashboardDraft, JsonObject, PublicWidgetDefinition, WidgetInstance, WidgetSize };
 
-export type WidgetType = "text" | "date" | "todo" | "codex-usage";
+export type WidgetType = "text" | "date" | "todo" | "codex-usage" | "calendar" | "weather" | "image";
 
 export type TextConfig = JsonObject & {
   title: string;
@@ -39,7 +39,59 @@ export type CodexUsageConfig = JsonObject & {
   lowBalanceThreshold: number;
 };
 
-export type WidgetConfig = TextConfig | DateConfig | TodoConfig | CodexUsageConfig;
+export type CalendarConfig = JsonObject & {
+  title: string;
+  layout: "month" | "list" | "month-list";
+  month: string;
+  weekStartsOn: 0 | 1;
+  showWeekdays: boolean;
+  connectionId: string;
+  connectionRevision: number;
+  calendarIds: string[];
+  eventRangeDays: number;
+  maxVisible: number;
+};
+
+export type WeatherConfig = JsonObject & {
+  title: string;
+  locationMode: "city" | "coordinates";
+  city: string;
+  latitude: number;
+  longitude: number;
+  units: "m" | "i";
+  connectionId: string;
+  connectionRevision: number;
+  showTemperature: boolean;
+  showCondition: boolean;
+  showFeelsLike: boolean;
+  showHumidity: boolean;
+  showWind: boolean;
+  showForecast: boolean;
+  showUpdatedAt: boolean;
+  refreshSeconds: number;
+  cacheTtlSeconds: number;
+  maxStaleSeconds: number;
+};
+
+export type ImageConfig = JsonObject & {
+  title: string;
+  sourceType: "album" | "directory";
+  sourceId: string;
+  sourceRevision: number;
+  recursive: boolean;
+  selection: "random" | "sequential" | "fixed";
+  fixedImageId: string;
+  rotationSeconds: number;
+  noRepeat: boolean;
+  fit: "contain" | "cover";
+  grayscale: boolean;
+  showTitle: boolean;
+  showCaption: boolean;
+  showBorder: boolean;
+  padding: number;
+};
+
+export type WidgetConfig = TextConfig | DateConfig | TodoConfig | CodexUsageConfig | CalendarConfig | WeatherConfig | ImageConfig;
 
 export type Snapshot = {
   revision: number;

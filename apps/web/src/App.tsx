@@ -18,17 +18,20 @@ import {
 } from "./grid";
 import { WidgetCanvas, type DragState } from "./WidgetCanvas";
 import type {
+  CalendarConfig,
   CodexConnectionResponse,
   CodexConnectionTestResponse,
   CodexUsageConfig,
   DashboardDraft,
   DashboardResponse,
   DateConfig,
+  ImageConfig,
   JobResponse,
   JsonObject,
   PublicWidgetDefinition,
   TextConfig,
   TodoConfig,
+  WeatherConfig,
   WidgetInstance,
   WidgetSize,
   WidgetType
@@ -451,6 +454,15 @@ function widgetIcon(type: string): string {
   }
   if (type === "todo") {
     return "check_circle";
+  }
+  if (type === "calendar") {
+    return "calendar_month";
+  }
+  if (type === "image") {
+    return "visibility";
+  }
+  if (type === "weather") {
+    return "info";
   }
   return "terminal";
 }
@@ -1230,11 +1242,18 @@ function PanelHeader({ title, subtitle }: { title: string; subtitle: string }) {
 
 function LibraryButton({ definition, onAdd }: { definition: PublicWidgetDefinition; onAdd: () => void }) {
   const { manifest } = definition;
+  const sourceLabel = manifest.type === "calendar"
+    ? "Google 日历 · OAuth"
+    : manifest.type === "weather"
+      ? "和风天气 · 服务端连接"
+      : manifest.type === "image"
+        ? "相册目录 · 服务端资源"
+        : manifest.category === "account" ? "数据连接 · Codex" : "本地组件 · 无需连接";
   return (
     <button type="button" className="library-button" onClick={onAdd} aria-label={`添加${manifest.displayName}`}>
       <span className="library-card-heading"><StudioIcon name={widgetIcon(manifest.type)} /><strong>{manifest.displayName}</strong><small>{manifest.defaultSize.columns}×{manifest.defaultSize.rows}</small></span>
       <span className="library-description">{manifest.description}</span>
-      <span className="library-card-footer"><span>{manifest.category === "account" ? "数据连接 · Codex" : "本地组件 · 无需连接"}</span><StudioIcon name="add" /></span>
+      <span className="library-card-footer"><span>{sourceLabel}</span><StudioIcon name="add" /></span>
     </button>
   );
 }
@@ -1381,6 +1400,82 @@ function ConfigInspector({
           ))}
         </div>
         <button type="button" className="ghost-button" onClick={() => onChange(toJsonObject({ ...todo, items: [...todo.items, { id: makeId("todo"), text: "新待办", done: false }] }))}>添加待办</button>
+      </section>
+    );
+  }
+
+  if (widget.type === "calendar") {
+    const calendar = config as CalendarConfig;
+    return (
+      <section className="inspector-section">
+        <SectionTitle title="显示" />
+        <TextInput label="标题" value={calendar.title} onChange={(title) => onChange(toJsonObject({ ...calendar, title }))} />
+        <SelectInput label="布局" value={calendar.layout} options={[["month", "月历"], ["list", "日程列表"], ["month-list", "月历 + 日程"]]} onChange={(layout) => onChange(toJsonObject({ ...calendar, layout: layout as CalendarConfig["layout"] }))} />
+        <TextInput label="指定月份（可选）" value={calendar.month} onChange={(month) => onChange(toJsonObject({ ...calendar, month }))} />
+        <SelectInput label="每周起始" value={String(calendar.weekStartsOn)} options={[["1", "周一"], ["0", "周日"]]} onChange={(value) => onChange(toJsonObject({ ...calendar, weekStartsOn: Number(value) as CalendarConfig["weekStartsOn"] }))} />
+        <CheckboxInput label="显示星期标题" checked={calendar.showWeekdays} onChange={(showWeekdays) => onChange(toJsonObject({ ...calendar, showWeekdays }))} />
+        <label>
+          Google 日历连接 ID
+          <input value={calendar.connectionId} placeholder="完成 OAuth 后自动填充" onChange={(event) => onChange(toJsonObject({ ...calendar, connectionId: event.currentTarget.value }))} />
+        </label>
+        <label>
+          日历 ID（逗号分隔）
+          <input value={calendar.calendarIds.join(", ")} onChange={(event) => onChange(toJsonObject({ ...calendar, calendarIds: event.currentTarget.value.split(",").map((value) => value.trim()).filter(Boolean) }))} />
+        </label>
+        <p className="muted-copy">Google OAuth 授权和日历选择由服务端连接管理；保存后不会回传 refresh token。</p>
+        <div className="field-grid two">
+          <label>事件范围（天）<input type="number" min={1} max={31} value={calendar.eventRangeDays} onChange={(event) => onChange(toJsonObject({ ...calendar, eventRangeDays: ensureNumber(event.currentTarget.value, calendar.eventRangeDays) }))} /></label>
+          <label>最多显示<input type="number" min={1} max={20} value={calendar.maxVisible} onChange={(event) => onChange(toJsonObject({ ...calendar, maxVisible: ensureNumber(event.currentTarget.value, calendar.maxVisible) }))} /></label>
+        </div>
+      </section>
+    );
+  }
+
+  if (widget.type === "weather") {
+    const weather = config as WeatherConfig;
+    return (
+      <section className="inspector-section">
+        <SectionTitle title="显示" />
+        <TextInput label="标题" value={weather.title} onChange={(title) => onChange(toJsonObject({ ...weather, title }))} />
+        <SelectInput label="位置方式" value={weather.locationMode} options={[["city", "城市或 Location ID"], ["coordinates", "经纬度"]]} onChange={(locationMode) => onChange(toJsonObject({ ...weather, locationMode: locationMode as WeatherConfig["locationMode"] }))} />
+        {weather.locationMode === "city" ? <TextInput label="城市 / Location ID" value={weather.city} onChange={(city) => onChange(toJsonObject({ ...weather, city }))} /> : <div className="field-grid two"><label>纬度<input type="number" min={-90} max={90} step="any" value={weather.latitude} onChange={(event) => onChange(toJsonObject({ ...weather, latitude: ensureNumber(event.currentTarget.value, weather.latitude) }))} /></label><label>经度<input type="number" min={-180} max={180} step="any" value={weather.longitude} onChange={(event) => onChange(toJsonObject({ ...weather, longitude: ensureNumber(event.currentTarget.value, weather.longitude) }))} /></label></div>}
+        <SelectInput label="单位" value={weather.units} options={[["m", "公制（°C）"], ["i", "英制（°F）"]]} onChange={(units) => onChange(toJsonObject({ ...weather, units: units as WeatherConfig["units"] }))} />
+        <label>
+          和风连接 ID
+          <input value={weather.connectionId} placeholder="服务端连接 ID" onChange={(event) => onChange(toJsonObject({ ...weather, connectionId: event.currentTarget.value }))} />
+        </label>
+        <p className="muted-copy">API Host、API Key 或 JWT 只保存在服务端连接中；这里仅保存连接引用。</p>
+        <SectionTitle title="显示项目" />
+        <CheckboxInput label="温度" checked={weather.showTemperature} onChange={(showTemperature) => onChange(toJsonObject({ ...weather, showTemperature }))} />
+        <CheckboxInput label="天气状况" checked={weather.showCondition} onChange={(showCondition) => onChange(toJsonObject({ ...weather, showCondition }))} />
+        <CheckboxInput label="体感温度" checked={weather.showFeelsLike} onChange={(showFeelsLike) => onChange(toJsonObject({ ...weather, showFeelsLike }))} />
+        <CheckboxInput label="湿度" checked={weather.showHumidity} onChange={(showHumidity) => onChange(toJsonObject({ ...weather, showHumidity }))} />
+        <CheckboxInput label="风速" checked={weather.showWind} onChange={(showWind) => onChange(toJsonObject({ ...weather, showWind }))} />
+        <CheckboxInput label="三日预报（4×2）" checked={weather.showForecast} onChange={(showForecast) => onChange(toJsonObject({ ...weather, showForecast }))} />
+        <CheckboxInput label="显示更新时间" checked={weather.showUpdatedAt} onChange={(showUpdatedAt) => onChange(toJsonObject({ ...weather, showUpdatedAt }))} />
+        <label>采集间隔（秒）<input type="number" min={300} max={86400} value={weather.refreshSeconds} onChange={(event) => onChange(toJsonObject({ ...weather, refreshSeconds: ensureNumber(event.currentTarget.value, weather.refreshSeconds) }))} /></label>
+      </section>
+    );
+  }
+
+  if (widget.type === "image") {
+    const image = config as ImageConfig;
+    return (
+      <section className="inspector-section">
+        <SectionTitle title="图片相册" />
+        <TextInput label="标题" value={image.title} onChange={(title) => onChange(toJsonObject({ ...image, title }))} />
+        <SelectInput label="资源类型" value={image.sourceType} options={[["album", "平台相册"], ["directory", "登记目录"]]} onChange={(sourceType) => onChange(toJsonObject({ ...image, sourceType: sourceType as ImageConfig["sourceType"] }))} />
+        <label>相册 / 目录 ID<input value={image.sourceId} placeholder="由服务端资源管理生成" onChange={(event) => onChange(toJsonObject({ ...image, sourceId: event.currentTarget.value }))} /></label>
+        <CheckboxInput label="扫描子目录" checked={image.recursive} onChange={(recursive) => onChange(toJsonObject({ ...image, recursive }))} />
+        <SelectInput label="选图方式" value={image.selection} options={[["random", "随机"], ["sequential", "按顺序"], ["fixed", "固定图片"]]} onChange={(selection) => onChange(toJsonObject({ ...image, selection: selection as ImageConfig["selection"] }))} />
+        {image.selection === "fixed" ? <TextInput label="固定图片 ID" value={image.fixedImageId} onChange={(fixedImageId) => onChange(toJsonObject({ ...image, fixedImageId }))} /> : null}
+        <CheckboxInput label="随机一轮内不重复" checked={image.noRepeat} onChange={(noRepeat) => onChange(toJsonObject({ ...image, noRepeat }))} />
+        <label>轮换间隔（秒）<input type="number" min={60} max={31536000} value={image.rotationSeconds} onChange={(event) => onChange(toJsonObject({ ...image, rotationSeconds: ensureNumber(event.currentTarget.value, image.rotationSeconds) }))} /></label>
+        <SelectInput label="图片适配" value={image.fit} options={[["contain", "完整显示并留白"], ["cover", "填满并裁剪"]]} onChange={(fit) => onChange(toJsonObject({ ...image, fit: fit as ImageConfig["fit"] }))} />
+        <CheckboxInput label="灰度处理" checked={image.grayscale} onChange={(grayscale) => onChange(toJsonObject({ ...image, grayscale }))} />
+        <CheckboxInput label="显示图片名" checked={image.showCaption} onChange={(showCaption) => onChange(toJsonObject({ ...image, showCaption }))} />
+        <CheckboxInput label="显示边框" checked={image.showBorder} onChange={(showBorder) => onChange(toJsonObject({ ...image, showBorder }))} />
+        <p className="muted-copy">目录由服务端登记和扫描；浏览器不能读取服务器路径，远程图片 URL 也不会直接加载。</p>
       </section>
     );
   }

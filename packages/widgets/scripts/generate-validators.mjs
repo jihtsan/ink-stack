@@ -27,7 +27,14 @@ for (const type of widgets) {
 const outputPath = resolve(packageRoot, "src/generated/config-validators.js");
 const declarationsPath = resolve(packageRoot, "src/generated/config-validators.d.ts");
 mkdirSync(dirname(outputPath), { recursive: true });
-writeFileSync(outputPath, `${standaloneCode(ajv, exports)}\n`);
+// Ajv 8.20 emits a CommonJS require for the unicode length helper even when
+// ESM standalone output is requested. Rewrite that one runtime import so the
+// generated validators can be loaded by the server's ESM worker.
+const generated = standaloneCode(ajv, exports).replace(
+  /const (func\d+) = require\("ajv\/dist\/runtime\/ucs2length"\)\.default;/g,
+  'import $1 from "ajv/dist/runtime/ucs2length.js";'
+);
+writeFileSync(outputPath, `${generated}\n`);
 writeFileSync(
   declarationsPath,
   `export interface GeneratedValidationError {
