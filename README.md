@@ -6,11 +6,11 @@ InkStack 是一个面向墨水屏的可组合信息看板项目。通过网页�
 
 ## 当前状态
 
-首版软件已完成本机开发和验收：React 网格编辑器、Fastify 服务、SQLite 草稿/发布、服务端中文灰度 PNG、七种内置组件及 Codex 同机只读额度接入均可运行。天气、日历、图片组件的供应商连接和资源管理仍需平台接线；验证范围和遗留项见 [验收记录](docs/verification.md)。Kindle 实机、固件兼容性与长期续航尚未验证。
+首版工作流已接通：React 网格编辑器、Fastify 服务、SQLite 草稿/发布、服务端中文灰度 PNG、七种内置组件、服务端天气连接、图片资源管理、Google OAuth/Calendar 接口和已发布配置调度均可运行。和风天气与 Google 的真实账号联调需要在本机配置供应商凭据；代码集成使用受控模拟上游验证，不能替代供应商授权。Kindle 已完成 linkss 安装与首次显示确认，连续唤醒、断网恢复和长期续航仍待实机验证，详见 [验收记录](docs/verification.md)。
 
 ## 本地运行
 
-已加入 [日历与日程组件](packages/widgets/src/calendar/README.md)、[和风天气组件](packages/widgets/src/weather/README.md) 和 [图片/相册组件](packages/widgets/src/image/README.md)：公共 catalog、服务端 registry、配置校验、纯 SVG 绘制和编辑器配置面板均已接入。Google OAuth、和风实际 HTTP 传输、相册管理 API 与后台调度仍由平台层接线；默认未连接状态不会伪装成授权成功。
+已加入 [日历与日程组件](packages/widgets/src/calendar/README.md)、[和风天气组件](packages/widgets/src/weather/README.md) 和 [图片/相册组件](packages/widgets/src/image/README.md)：公共 catalog、服务端 registry、配置校验、纯 SVG 绘制、服务端连接/资源管理和编辑器配置面板均已接入。默认未连接状态不会伪装成授权成功；真实天气请求需要 QWeather 控制台分配的 API Host 与密钥，真实 Google 日程需要 OAuth Web 应用和用户授权。
 
 编辑器已按 PaperCraft Studio 参考重写为三栏工作台：组件搜索和规格筛选、画布图层、Kindle 设备画框、属性/画布/设备面板，以及编辑与 PNG 预览切换。支持网格显示开关、原始像素比例和 PNG 下载，窄屏下各面板顺序排列。预览按钮会重新生成画面；发布继续使用已保存草稿。视觉和交互验证见 [UI 验收](design-qa.md)。
 
@@ -33,9 +33,17 @@ npm start
 .\scripts\local.ps1 start
 ```
 
-访问 **http://127.0.0.1:3210**。首次启动生成随机管理员密码，保存在 `.local/admin-password.txt`，不会输出到服务日志。使用该文件中的密码登录；也可通过 `INKSTACK_ADMIN_PASSWORD` 环境变量提供至少 16 字符的密码。不要提交 `.local` 或 `data`。
+访问 **http://127.0.0.1:3210**。首次启动生成随机管理员密码，保存在 `.local/admin-password.txt`，不会输出到服务日志；同时生成 `.local/master-key.bin`，用于连接密钥加密，必须和数据目录一起备份但不要提交。使用该文件中的密码登录；也可通过 `INKSTACK_ADMIN_PASSWORD` 环境变量提供至少 16 字符的密码。不要提交 `.local` 或 `data`。`INKSTACK_REFRESH_SECONDS` 仅在显式设置时覆盖初始调度周期，未设置时重启会保留页面保存的周期。
 
-添加组件 → 配置和移动 → 保存草稿 → 预览 → 发布。预览使用服务端实际 PNG。首次“创建图片地址”返回独立只读地址，原文只显示一次；重新生成将使旧地址失效。页面刷新后仍可查看发布状态，但不会回传旧令牌。
+添加组件 → 配置和移动 → 自动预览或手动预览 → 一键发布。预览使用服务端实际 PNG；发布会自动保存当前有效草稿，并只替换成功生成的已发布快照。天气连接密钥只在服务端加密保存，图片面板可登记相册/管理员目录、扫描和上传图片，日历面板通过 Google OAuth 读取可用日历。首次“创建图片地址”返回独立只读地址，原文只显示一次；重新生成将使旧地址失效。页面刷新后仍可查看发布状态，但不会回传旧令牌。
+
+### 外部连接配置
+
+- 和风天气：在天气面板填写控制台分配的 API Host 和 API Key/JWT；服务端调用当前 v1 经纬度天气/逐日预报 API，城市名先经过 GeoAPI 唯一匹配。测试未保存输入时不会写入连接或发布配置。
+- Google Calendar：在日历面板保存 OAuth Web 应用 Client ID/Secret，把页面显示的精确 `/api/google/oauth/callback` 加入 Google Cloud Console，然后点击“连接 Google”。授权 token 只留在服务端。
+- 图片：平台相册写入 `data/images/albums`；服务器目录必须由管理员登记，浏览器不会读取任意服务器路径，也不支持远程 URL。
+
+后台刷新只采集并重新生成已发布配置；Kindle 客户端按设备自身日程 GET 固定图片地址。图片 GET 不触发上游采集，也不能代表 Kindle 已经完成屏幕显示。
 
 ```powershell
 npm run typecheck

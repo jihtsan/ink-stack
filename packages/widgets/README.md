@@ -1,6 +1,6 @@
 # 小组件
 
-状态：已实现公共 catalog、服务端 registry、七个内置组件和组件配置校验；天气、日历、图片的服务端适配契约已就绪，真实供应商凭据和平台管理流程仍待接入。
+状态：已实现公共 catalog、服务端 registry、七个内置组件和组件配置校验；天气、日历、图片的服务端适配契约以及应用层连接/资源管理已接入。真实供应商凭据、Google 用户授权和 Kindle 实机证据仍单独验证。
 
 这里按“一种组件，一个文件夹”组织元数据、配置校验、绘制、可选取数和样例。包含 `text`、`date`、`todo`、固定 2×4 的 `codex-usage`、[calendar](src/calendar/README.md)、[weather](src/weather/README.md) 和 [image](src/image/README.md)。
 
@@ -13,7 +13,7 @@
 服务端入口：
 
 - `@ink-stack/widgets/registry.server` 导出 `widgetServerRegistry`、`widgetServerRegistryByType` 和 `renderWidgetToSvg()`。
-- registry 只注册项目源码内的受信任 render 函数；渲染函数不取网络、不读凭据、不读系统时间。
+- registry 只注册项目源码内的受信任 render 函数；渲染函数不取网络、不读凭据、不读系统时间。天气、Google 和图片取数发生在应用服务层，完成后只向 renderer 传脱敏快照。
 - Codex 归一化可从 `@ink-stack/widgets/codex-usage/normalize` 导入，输入对齐 `apps/server/src/connectors/codex-app-server.ts` 的 `CodexRateLimitsSnapshot` / `CodexLimitsResult` 结构。
 
 Codex 当前边界：

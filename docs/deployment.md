@@ -15,20 +15,39 @@
 | INKSTACK_ORIGIN | http://HOST:PORT | 管理界面精确来源，变更请求校验 Origin |
 | INKSTACK_DATA_DIR | data | SQLite 与 PNG 目录 |
 | INKSTACK_ADMIN_PASSWORD | 自动生成本地文件 | 至少16字符；服务器用 scrypt 比较 |
-| INKSTACK_REFRESH_SECONDS | 600 | 已发布配置更新周期，最小60秒 |
+| INKSTACK_REFRESH_SECONDS | 首次启动900秒；之后使用数据库值 | 覆盖已发布配置更新周期，范围60—86400秒；未设置时保留网页中保存的值 |
 | INKSTACK_CODEX_COMMAND | PATH 上的 Codex 可执行文件 | 可固定真实二进制绝对路径，不能来自网页配置 |
+| INKSTACK_MASTER_KEY | `.local/master-key.bin` 自动生成 | 可用32字节 base64url 值注入；用于天气密钥、Google OAuth 客户端和令牌加密 |
 
 管理员密码文件 `.local/admin-password.txt` 不属于备份数据库。登录 cookie 为 HttpOnly、SameSite=Strict，HTTPS origin 下启用 Secure；会话最长12小时，重启后重新登录。`.local` 应只允许服务账号读取。Windows 可按服务账号设置目录 ACL，POSIX 启动时使用700目录/600文件。
 
 Kindle 接入时需选择可信局域网地址，将 HOST 设为该接口地址，并把 INKSTACK_ORIGIN 设为浏览器实际访问的精确地址。本次实机联调使用 `HOST=192.168.100.116`、`PORT=3210`、`INKSTACK_ORIGIN=http://192.168.100.116:3210`，只监听该私网接口；没有绑定 `0.0.0.0`、添加防火墙规则或配置公网转发。HTTP 不提供传输保密；公网部署不在已验证范围。主机地址变化后应重新生成 Kindle 配置。
 
-## Codex
+## 受控连接
+
+所有外部连接都由服务端登记和读取。浏览器只提交连接配置或资源引用，不保存密钥、OAuth token，也不接受任意上游 URL。缺少主密钥时，写入需要加密的凭据会被拒绝。
+
+### Codex
 
 服务账号必须具备同机 Codex CLI 和 ChatGPT 登录环境，命令通过固定服务部署配置/PATH 解析，以 shell:false 启动。只读取 account/read 和 account/rateLimits/read，不读取或复制认证文件，不发模型任务，不使用 API key，不消费 reset。
 
 默认每10分钟复用一次最小快照；手动测试至少间隔15秒且限频。多个本机连接代表同一个主机来源，复用采集，不能绑定不同账号。登录失效清除旧快照；短暂读取失败且确认仍是同一账号时，一小时内显示过期值及原采集时间，超过一小时隐藏值。身份未知或切换时不复用余额。重启后先重新读取，不伪造缓存。
 
-首版只有 codex-local 适配器，无 HTTP API、订阅 URL、密钥输入字段。未声明的秘密/入口一律拒绝。已实现并测试 AES-256-GCM 凭据工具（keep/replace/clear、归属绑定、失效回调）和默认拒绝目标工具，供未来受信任适配器接入；当前没有声称任何通用 API 服务已连通。未来启用该工具时，32字节主密钥必须由部署注入并单独保管，不放入 SQLite、日志、看板或工作线程消息，缺失密钥时拒绝解密。
+Codex 适配器只允许本机只读命令，不能从网页配置 API key、订阅 URL 或任意命令。未声明的秘密/入口一律拒绝；不发模型任务、不读取认证文件、不消费 reset。
+
+### QWeather
+
+天气连接使用 QWeather v1 的当前天气、逐日预报和城市查找接口；服务端只允许 HTTPS 和 QWeather 官方 API 路径，并将 API key 保存在加密凭据仓库。当前天气与逐日预报的接口形态以 [QWeather 当前天气 v1 文档](https://dev.qweather.com/docs/api/weather/weather-current/)、[逐日预报 v1 文档](https://dev.qweather.com/docs/api/weather/weather-daily-forecast/) 和 [城市查找文档](https://dev.qweather.com/docs/api/geoapi/city-lookup/) 为准。未保存的连接测试只验证输入和上游返回，不写入连接、缓存或发布任务。
+
+部署者需要在管理页提供官方 API Host 与密钥，并确认该 Host 属于自己的 QWeather 服务配置；本地模拟 transport 和单元测试不等同于真实供应商联调。
+
+### Google Calendar
+
+先在管理页保存 Google OAuth Web 客户端的 client ID/secret，再使用页面显示的精确回调地址发起授权。服务端通过会话绑定的 state 完成回调，access/refresh token 加密保存，并按需读取 CalendarList 和 Events；未完成 Google Cloud 客户端配置或用户授权时，不应把模拟 OAuth 测试当成真实接入证据。
+
+### 调度
+
+调度状态和刷新周期持久化在 SQLite。首次初始化为启用、900秒；网页保存的启用状态和60—86400秒周期会跨重启保留。每次自动任务只读取已发布修订，不会把未发布草稿推送到设备；取图 URL 只读取已发布 PNG，不触发外部连接或渲染。
 
 ## 图片与故障恢复
 

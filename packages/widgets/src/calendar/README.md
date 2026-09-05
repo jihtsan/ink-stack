@@ -1,6 +1,6 @@
 # 日历与日程 · calendar
 
-状态：本地月历、日程列表、配置校验、fixture 和服务端适配契约已实现。**真实 Google OAuth、日历列表读取和事件 HTTP 请求尚未实现**。默认显示本地月历和“未连接 Google Calendar”；任意连接 ID 不代表授权成功，未注入 adapter 时显示“Google 授权接入尚未完成”。
+状态：本地月历、日程列表、配置校验、fixture 和服务端适配契约已实现。应用层已接入 Google OAuth state/授权码交换、加密 token、刷新、撤销、日历列表和事件 HTTP 请求。默认显示本地月历和“未连接 Google Calendar”；部署者仍需配置 OAuth Web 应用并由用户完成真实授权，模拟 OAuth 不能作为真实授权证据。
 
 ## 文件与入口
 
@@ -36,13 +36,12 @@
 
 未连接、授权失效、读取失败与成功获取零条分别显示，月历仍可用。平台继续负责 PNG 发布和失败保留策略。
 
-## 真实 Google 接入 TODO
+## 真实 Google 接入前置条件
 
-1. 管理员会话下的 OAuth 发起/回调、会话绑定 state、固定 redirect URI、授权码交换、撤销/重连。当前 connection schema 仅描述流程，没有授权路由。
-2. 客户端密钥、access/refresh token 仅服务端加密保存及刷新；连接版本绑定账号，秘密不进入看板、日志、浏览器 GET 或渲染消息。
-3. 请求 calendar.events.readonly 与 calendar.calendarlist.readonly，读取分页的已授权日历列表并实现专用连接/日历选择编辑器。主 UI 的硬编码组件类型分支仍需集成。
-4. 受限 Google HTTPS adapter：固定 API 目标、禁止重定向泄漏凭据、响应体/并发/页数限制；events.list 使用 singleEvents=true、orderBy=startTime、showDeleted=false。处理分页、重复项、401/403、限流和刷新失败，截断必须返回 truncated=true。
-5. 将 adapter 注入 collectWidgetData 与平台周期采集。真实 Google、授权撤销/账号切换、平台端到端及 Kindle 实机尚未验证。
+1. 在 Google Cloud Console 创建 OAuth Web application，把页面显示的精确 /api/google/oauth/callback 配置为 redirect URI，并在面板保存 Client ID/Secret。
+2. 管理员点击“连接 Google”，在 Google 授权页完成用户同意；客户端密钥、access/refresh token 仅服务端加密保存，连接版本绑定授权账号。
+3. 应用请求 calendar.events.readonly 与 calendar.calendarlist.readonly，读取分页日历列表并由面板选择。events.list 使用 singleEvents=true、orderBy=startTime、showDeleted=false；分页、重复项、401/403、刷新失败和截断均有边界处理。
+4. 真实 Google 授权、账号切换和 Kindle 实机仍需在部署环境验证；未配置时继续使用本地月历和未连接状态。
 
 官方依据：[Events.list](https://developers.google.com/workspace/calendar/api/v3/reference/events/list)、[事件资源](https://developers.google.com/workspace/calendar/api/v3/reference/events)、[CalendarList.list](https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list)、[Web Server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server)。
 
@@ -59,4 +58,4 @@ npm run typecheck
 npm run lint
 ```
 
-测试 fixture 必须使用非空测试连接引用和固定时间。运行中的主程序未注入 Google adapter，不发起真实授权或 Google 请求。
+测试 fixture 必须使用非空测试连接引用和固定时间。应用主程序默认使用受限 Google HTTP adapter；测试通过注入模拟 transport，不发起真实授权。部署时没有 OAuth 配置不会发起授权。
