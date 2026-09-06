@@ -4,6 +4,8 @@
   "additionalProperties": false,
   "required": ["title", "sourceType", "sourceId", "sourceRevision", "recursive", "selection", "fixedImageId", "rotationSeconds", "noRepeat", "fit", "grayscale", "showTitle", "showCaption", "showBorder", "padding"],
   "properties": {
+    "photoFrame": {"type": "boolean", "title": "相纸边框"},
+    "caption": {"type": "string", "maxLength": 80, "title": "相纸题字"},
     "title": { "type": "string", "maxLength": 120, "title": "标题" },
     "sourceType": { "type": "string", "enum": ["album", "directory"], "title": "资源类型" },
     "sourceId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,80}$", "title": "平台资源 ID" },

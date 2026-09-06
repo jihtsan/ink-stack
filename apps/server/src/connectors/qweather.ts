@@ -74,7 +74,7 @@ function connectionIdFromSecretRef(_secretRef: string): string {
 function isAllowedPath(pathname: string): boolean {
   return pathname === "/geo/v2/city/lookup"
     || pathname === "/v7/weather/now"
-    || pathname === "/v7/weather/3d"
+    || pathname === "/v7/weather/7d" || pathname === "/v7/weather/3d"
     || pathname === "/v7/weather/24h"
     || /^\/weather\/v1\/current\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname)
     || /^\/weather\/v1\/daily\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(pathname)
@@ -86,7 +86,7 @@ function isAllowedPath(pathname: string): boolean {
 export function qweatherQueryAllowed(url: URL): boolean {
   const allowed = url.pathname === "/geo/v2/city/lookup"
     ? ["location", "number", "lang"]
-    : url.pathname === "/v7/weather/now" || url.pathname === "/v7/weather/3d" || url.pathname === "/v7/weather/24h"
+    : url.pathname === "/v7/weather/now" || url.pathname === "/v7/weather/7d" || url.pathname === "/v7/weather/3d" || url.pathname === "/v7/weather/24h"
       ? ["location", "unit", "lang"]
       : url.pathname.startsWith("/weather/v1/current/")
         ? ["localTime", "lang"]

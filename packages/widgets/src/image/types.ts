@@ -12,6 +12,8 @@ export interface ImageWidgetConfig {
   grayscale: boolean;
   showTitle: boolean;
   showCaption: boolean;
+  photoFrame?: boolean;
+  caption?: string;
   showBorder: boolean;
   padding: number;
 }

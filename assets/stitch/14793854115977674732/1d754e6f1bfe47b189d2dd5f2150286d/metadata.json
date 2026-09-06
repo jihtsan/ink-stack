@@ -5,22 +5,22 @@
   "deviceType": "DESKTOP",
   "height": "2570",
   "htmlCode": {
-    "downloadUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzAwMDY1YWIzYjQ1YTNjZDkwMWE2MmRlMzYxM2E1ZWNiEgsSBxCYnoeG5gUYAZIBJAoKcHJvamVjdF9pZBIWQhQxNDc5Mzg1NDExNTk3NzY3NDczMg&filename=&opi=89354086",
+    "downloadUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzAwMDY1YWJlM2M5OTQxODkwNTc2MDJlNzQ2MDYyZWUzEgsSBxCYnoeG5gUYAZIBJAoKcHJvamVjdF9pZBIWQhQxNDc5Mzg1NDExNTk3NzY3NDczMg&filename=&opi=89354086",
     "mimeType": "text/html",
-    "name": "projects/14793854115977674732/files/14277874639169489554"
+    "name": "projects/14793854115977674732/files/10441180816677308478"
   },
   "name": "projects/14793854115977674732/screens/1d754e6f1bfe47b189d2dd5f2150286d",
   "screenshot": {
-    "downloadUrl": "https://lh3.googleusercontent.com/aida/AEtjO1XeOcRzuZixdjBKVl2-79JXWqh23snObIjl5itcCBT8cmSONUruXR62UBF9eKmHoAiHnj_Y_Ox2ApBL25LQhU4bFPAdlAb1I3o-MYvEpPqDrlNK_iU0RJ8DdBGGXy8-P7_lx79B-AYYT6fVlZ0G1zyVOPwcrZuYY8tFhfPMdiFunIsdzaCJinmpMzfQOW_umNF3xLhzAS57_QCylBrI4wc8CpmFo6mRlvdl3LTRYb1XbBQiuHPrtRrLiv0",
-    "name": "projects/14793854115977674732/files/13217621833048802635"
+    "downloadUrl": "https://lh3.googleusercontent.com/aida/AEtjO1VzkBu-0kCqoyyzlKwYycUsMUUrfqmdqhRCWfTgu0VCUQiYNXvPk1ZdGYb3VRS5p4MI-esefra-H3FjzpsUq1HK9nIActDA6g9DgvvfvlQ1dq_usfanY8MQ7_TQqthlpkZFcl_FiS6113hCtzUc_v2Ei_GUIEVa-qp1bsaTKjHwzq1YnxJlbo60EeOfRQyOILm34HLpBvu9QHw5DURi79dkGf8iSuOJdR6V83GUalM85PSB1vH8oha3Tvk",
+    "name": "projects/14793854115977674732/files/15626879056533596191"
   },
   "title": "Kindle 锁屏组件定制平台 (PaperCraft Studio)",
   "width": "2560",
-  "localFiles": {
-    "thumbnail": "thumbnail.jpg",
-    "screenshot": "screen.jpg",
-    "code": "code.html",
-    "screenshotWidth": 1920,
-    "screenshotHeight": 1536
-  }
+  "downloadedAt": "2026-09-06",
+  "hostedScreenshot": {
+    "file": "hosted-screen.jpg",
+    "width": 395,
+    "height": 512
+  },
+  "referenceNote": "Hosted screenshot is a low-resolution JPEG. Render code.html locally for full-size visual comparison."
 }

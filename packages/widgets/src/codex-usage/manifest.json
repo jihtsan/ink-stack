@@ -7,8 +7,21 @@
   "category": "account",
   "connectionType": "codex-app-server",
   "supportedSizes": [
-    { "columns": 2, "rows": 4 }
+    {
+      "columns": 2,
+      "rows": 2
+    },
+    {
+      "columns": 2,
+      "rows": 4
+    }
   ],
-  "defaultSize": { "columns": 2, "rows": 4 },
-  "minimumPixelSize": { "width": 220, "height": 330 }
+  "defaultSize": {
+    "columns": 2,
+    "rows": 4
+  },
+  "minimumPixelSize": {
+    "width": 220,
+    "height": 240
+  }
 }

@@ -13,7 +13,7 @@ export interface CodexUsageWidgetConfig {
 export function renderCodexUsageWidget(input: WidgetRenderInput<CodexUsageWidgetConfig, CodexUsageSnapshot>): string {
   const { rect, screen, timeZone } = input.context;
   const config = input.instance.config;
-  const scale = Math.min(renderScale(screen), rect.width / 200, rect.height / 300);
+  const scale = Math.min(renderScale(screen), rect.width / 200, rect.height / 350);
   const snapshot = input.data?.data;
   const state = snapshot?.state ?? input.data?.status ?? "unavailable";
   const windows = snapshot?.windows ?? [];

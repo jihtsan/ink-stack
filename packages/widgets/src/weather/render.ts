@@ -1,6 +1,7 @@
 import type { WidgetRenderInput } from "../types.js";
 import { cardFrame, escapeXml, fitText, renderScale, scaled, textWidth } from "../render-utils.js";
 import { weatherEnvelope } from "./normalize.js";
+import { renderWeatherDashboard } from "./dashboard.js";
 import type { WeatherConfig, WeatherEnvelope, WeatherSnapshot } from "./types.js";
 
 export function renderWeatherWidget(input: WidgetRenderInput<WeatherConfig, WeatherSnapshot>): string {
@@ -12,6 +13,7 @@ export function renderWeatherWidget(input: WidgetRenderInput<WeatherConfig, Weat
     : weatherEnvelope(incoming?.data?.units === config.units ? incoming.data : undefined, config, now,
       incoming?.status === "stale" ? incoming.reason === "expired" || incoming.reason === "missing" ? "response" : incoming.reason ?? "network" : undefined);
   const snapshot = envelope.status === "fresh" || envelope.status === "stale" ? envelope.data : undefined;
+  if (config.forecastMode === "dashboard") return renderWeatherDashboard(input, envelope, reasonText(envelope));
   const wide = input.instance.columnSpan === 4;
   const scale = Math.min(renderScale(screen), rect.width / (wide ? 440 : 220), rect.height / 180);
   const side = scaled(13, scale);

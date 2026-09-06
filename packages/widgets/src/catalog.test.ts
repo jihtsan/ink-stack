@@ -12,9 +12,9 @@ describe("widget catalog", () => {
       widgetCatalog.map((definition) => definition.manifest.type).sort()
     );
     expect(widgetCatalog.find((definition) => definition.manifest.type === "codex-usage")?.manifest.supportedSizes).toEqual([
-      { columns: 2, rows: 4 }
+      { columns: 2, rows: 2 }, { columns: 2, rows: 4 }
     ]);
-    expect(minimumPixelSizeByWidgetType.get("codex-usage")).toEqual({ width: 220, height: 330 });
+    expect(minimumPixelSizeByWidgetType.get("codex-usage")).toEqual({ width: 220, height: 240 });
   });
 
   it("validates each default config and rejects unknown config fields", () => {

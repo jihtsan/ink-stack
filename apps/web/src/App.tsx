@@ -2004,10 +2004,31 @@ function ConfigInspector({
       <section className="inspector-section">
         <SectionTitle title="显示" />
         <TextInput label="标题" value={weather.title} onChange={(title) => onChange(toJsonObject({ ...weather, title }))} />
+        <SectionTitle title="显示项目" />
+        <CheckboxInput label="温度" checked={weather.showTemperature} onChange={(showTemperature) => onChange(toJsonObject({ ...weather, showTemperature }))} />
+        <CheckboxInput label="天气状况" checked={weather.showCondition} onChange={(showCondition) => onChange(toJsonObject({ ...weather, showCondition }))} />
+        <CheckboxInput label="体感温度" checked={weather.showFeelsLike} onChange={(showFeelsLike) => onChange(toJsonObject({ ...weather, showFeelsLike }))} />
+        <CheckboxInput label="湿度" checked={weather.showHumidity} onChange={(showHumidity) => onChange(toJsonObject({ ...weather, showHumidity }))} />
+        <CheckboxInput label="风速" checked={weather.showWind} onChange={(showWind) => onChange(toJsonObject({ ...weather, showWind }))} />
+        <SelectInput label="天气看板样式" value={weather.forecastMode ?? "daily"} options={[["dashboard", "24H + 5 天综合看板"], ["daily", "每日天气预报"], ["hourly", "逐小时天气预报"], ["air-quality", "空气质量"]]} onChange={(forecastMode) => onChange(toJsonObject({ ...weather, forecastMode: forecastMode as NonNullable<WeatherConfig["forecastMode"]> }))} />
+        <CheckboxInput label="显示预报模块" checked={weather.showForecast} onChange={(showForecast) => onChange(toJsonObject({ ...weather, showForecast }))} />
+        {weather.forecastMode === "dashboard" ? <div className="weather-module-switches">
+          <CheckboxInput label="空气质量 AQI 与 PM2.5" checked={weather.showAirQuality !== false} onChange={(showAirQuality) => onChange(toJsonObject({ ...weather, showAirQuality }))} />
+          <CheckboxInput label="24 小时逐时温度图" checked={weather.showHourly !== false} onChange={(showHourly) => onChange(toJsonObject({ ...weather, showHourly }))} />
+          <CheckboxInput label="紫外线 UV 与出行穿衣建议" checked={weather.showUv !== false} onChange={(showUv) => onChange(toJsonObject({ ...weather, showUv }))} />
+          <CheckboxInput label="未来 5 天天气预报" checked={weather.showDaily !== false} onChange={(showDaily) => onChange(toJsonObject({ ...weather, showDaily }))} />
+        </div> : <p className="muted-copy">单项扩展信息在 4×2 宽卡显示；2×2 综合看板可同时显示多个模块。</p>}
+        <CheckboxInput label="显示更新时间" checked={weather.showUpdatedAt} onChange={(showUpdatedAt) => onChange(toJsonObject({ ...weather, showUpdatedAt }))} />
+        <SectionTitle title="墨水屏渲染" />
+        <SelectInput label="天气图标风格" value={weather.iconStyle ?? "outline"} options={[["outline", "线框"], ["dot", "点阵"], ["solid", "实体"]]} onChange={(iconStyle) => onChange(toJsonObject({ ...weather, iconStyle: iconStyle as NonNullable<WeatherConfig["iconStyle"]> }))} />
+        <CheckboxInput label="Floyd–Steinberg 16 级灰度抖动" checked={weather.dither ?? false} onChange={(dither) => onChange(toJsonObject({ ...weather, dither }))} />
+        <WeatherRefreshControl key={widget.id} weather={weather} onChange={onChange} />
+        <details className="widget-connection-details"><summary>数据源与 API 连接</summary>
         <SelectInput label="位置方式" value={weather.locationMode} options={[["city", "城市 / 授权位置"], ["coordinates", "经纬度"]]} onChange={(locationMode) => onChange(toJsonObject({ ...(locationMode === "coordinates" ? withoutWeatherLocationId(weather) : weather), locationMode: locationMode as WeatherConfig["locationMode"] }))} />
         {weather.locationMode === "city" ? <TextInput label="搜索城市 / Location ID" value={weather.city} onChange={(city) => onChange(toJsonObject({ ...withoutWeatherLocationId(weather), city }))} /> : <div className="field-grid two"><label>纬度<input type="number" min={-90} max={90} step="any" value={weather.latitude} onChange={(event) => onChange(toJsonObject({ ...withoutWeatherLocationId(weather), latitude: ensureNumber(event.currentTarget.value, weather.latitude) }))} /></label><label>经度<input type="number" min={-180} max={180} step="any" value={weather.longitude} onChange={(event) => onChange(toJsonObject({ ...withoutWeatherLocationId(weather), longitude: ensureNumber(event.currentTarget.value, weather.longitude) }))} /></label></div>}
         <SectionTitle title="位置授权" />
-        <p className="muted-copy">先查找位置，再选择一个明确的 Location ID。选中后会固化名称与经纬度，天气请求不再使用模糊城市名。</p>
+        <p className="muted-copy">可以使用浏览器提供的当前位置，也可以查询城市并选择明确的 Location ID。浏览器定位只读取经纬度，不会上传到其他服务。</p>
+        <BrowserLocationButton weather={weather} onChange={onChange} />
         {weather.locationMode === "city" ? <div className="split-actions"><button type="button" className="ghost-button" onClick={() => onSearchWeatherLocations(weather)} disabled={weatherLocationsLoading}>{weatherLocationsLoading ? "查询中" : "查找授权位置"}</button></div> : null}
         {weather.locationId ? <div className="weather-location-card" aria-label={`已授权位置 ${weather.city}`}><strong>{weather.city || "已选择位置"}</strong><span>Location ID：{weather.locationId}</span><small>纬度 {weather.latitude.toFixed(5)} · 经度 {weather.longitude.toFixed(5)}</small><button type="button" className="ghost-button" onClick={() => onChange(toJsonObject(withoutWeatherLocationId(weather)))}>清除授权位置</button></div> : <p className="muted-copy">尚未选择明确位置；直接测试“北京”可能会因候选过多而失败。</p>}
         {weatherLocations ? <div className="weather-location-results" aria-live="polite"><strong>{weatherLocations.message}</strong>{weatherLocations.locations.map((location: WeatherLocation) => <button type="button" className="weather-location-option" key={location.id} onClick={() => onChange(toJsonObject({ ...weather, locationMode: "city", locationId: location.id, city: location.name, latitude: location.latitude, longitude: location.longitude }))} aria-label={`选择位置 ${location.name} · ${location.id}`}><span>{location.name}</span><small>{[location.adm1, location.adm2, location.country].filter(Boolean).join(" · ") || "位置"} · Location ID {location.id}</small><small>纬度 {location.latitude.toFixed(5)} · 经度 {location.longitude.toFixed(5)}</small></button>)}</div> : null}
@@ -2037,17 +2058,7 @@ function ConfigInspector({
         {weatherTest ? <div className={`connection-status ${weatherTest.status}`}><strong>{weatherTest.message}</strong>{weatherTest.observedAt ? <span>{formatDateTime(weatherTest.observedAt)}</span> : null}{weatherTest.summary ? <small>{weatherTest.summary.location} · {weatherTest.summary.temperature}{weather.units === "m" ? "°C" : "°F"} · {weatherTest.summary.condition}{weatherTest.summary.humidity === undefined ? "" : ` · 湿度 ${Math.round(weatherTest.summary.humidity)}%`}</small> : null}</div> : <p className="muted-copy">测试会发起一次受限的 QWeather HTTPS 请求；未保存的输入只在本次请求内使用。</p>}
         {weatherTest?.preview ? <p className="muted-copy">测试数据已临时显示在当前天气组件。{weather.connectionId ? "" : "当前连接尚未保存；保存连接后才能生成 PNG 预览并发布。"}</p> : null}
         {weatherTest?.summary?.airQuality ? <p className="muted-copy">空气质量测试：AQI {weatherTest.summary.airQuality.aqiDisplay} · {weatherTest.summary.airQuality.category}</p> : null}
-        <SectionTitle title="显示项目" />
-        <CheckboxInput label="温度" checked={weather.showTemperature} onChange={(showTemperature) => onChange(toJsonObject({ ...weather, showTemperature }))} />
-        <CheckboxInput label="天气状况" checked={weather.showCondition} onChange={(showCondition) => onChange(toJsonObject({ ...weather, showCondition }))} />
-        <CheckboxInput label="体感温度" checked={weather.showFeelsLike} onChange={(showFeelsLike) => onChange(toJsonObject({ ...weather, showFeelsLike }))} />
-        <CheckboxInput label="湿度" checked={weather.showHumidity} onChange={(showHumidity) => onChange(toJsonObject({ ...weather, showHumidity }))} />
-        <CheckboxInput label="风速" checked={weather.showWind} onChange={(showWind) => onChange(toJsonObject({ ...weather, showWind }))} />
-        <SelectInput label="扩展信息模式（4×2）" value={weather.forecastMode ?? "daily"} options={[["daily", "每日天气预报"], ["hourly", "逐小时天气预报"], ["air-quality", "空气质量"]]} onChange={(forecastMode) => onChange(toJsonObject({ ...weather, forecastMode: forecastMode as NonNullable<WeatherConfig["forecastMode"]> }))} />
-        <CheckboxInput label="显示扩展信息（4×2）" checked={weather.showForecast} onChange={(showForecast) => onChange(toJsonObject({ ...weather, showForecast }))} />
-        <p className="muted-copy">2×2 只显示当前天气；切换模式后，4×2 扩展区会在下一次预览/采集时更新。</p>
-        <CheckboxInput label="显示更新时间" checked={weather.showUpdatedAt} onChange={(showUpdatedAt) => onChange(toJsonObject({ ...weather, showUpdatedAt }))} />
-        <label>采集间隔（秒）<input type="number" min={300} max={86400} value={weather.refreshSeconds} onChange={(event) => onChange(toJsonObject({ ...weather, refreshSeconds: ensureNumber(event.currentTarget.value, weather.refreshSeconds) }))} /></label>
+        </details>
       </section>
     );
   }
@@ -2097,6 +2108,8 @@ function ConfigInspector({
         <label>轮换间隔（秒）<input type="number" min={60} max={31536000} value={image.rotationSeconds} onChange={(event) => onChange(toJsonObject({ ...image, rotationSeconds: ensureNumber(event.currentTarget.value, image.rotationSeconds) }))} /></label>
         <SelectInput label="图片适配" value={image.fit} options={[["contain", "完整显示并留白"], ["cover", "填满并裁剪"]]} onChange={(fit) => onChange(toJsonObject({ ...image, fit: fit as ImageConfig["fit"] }))} />
         <CheckboxInput label="灰度处理" checked={image.grayscale} onChange={(grayscale) => onChange(toJsonObject({ ...image, grayscale }))} />
+        <CheckboxInput label="相纸边框" checked={image.photoFrame ?? false} onChange={(photoFrame) => onChange(toJsonObject({ ...image, photoFrame }))} />
+        {image.photoFrame ? <TextInput label="相纸题字" value={image.caption ?? ""} onChange={(caption) => onChange(toJsonObject({ ...image, caption }))} /> : null}
         <CheckboxInput label="显示图片名" checked={image.showCaption} onChange={(showCaption) => onChange(toJsonObject({ ...image, showCaption }))} />
         <CheckboxInput label="显示边框" checked={image.showBorder} onChange={(showBorder) => onChange(toJsonObject({ ...image, showBorder }))} />
         <p className="muted-copy">目录由服务端登记和扫描；浏览器不能读取服务器路径，远程图片 URL 也不会直接加载。</p>
@@ -2242,4 +2255,43 @@ function CheckboxInput({ label, checked, onChange }: { label: string; checked: b
       {label}
     </label>
   );
+}
+
+function BrowserLocationButton({ weather, onChange }: { weather: WeatherConfig; onChange: (config: JsonObject) => void }) {
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  const locate = () => {
+    if (!navigator.geolocation) {
+      setStatus("error");
+      setMessage("当前浏览器不支持定位，请手动填写经纬度。");
+      return;
+    }
+    setStatus("loading");
+    setMessage("正在请求浏览器定位授权…");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        onChange(toJsonObject({ ...withoutWeatherLocationId(weather), locationMode: "coordinates", latitude: coords.latitude, longitude: coords.longitude }));
+        setStatus("success");
+        setMessage(`已获取当前位置：${coords.latitude.toFixed(5)}，${coords.longitude.toFixed(5)}`);
+      },
+      (error) => {
+        setStatus("error");
+        setMessage(({ 1: "定位授权被拒绝，请允许浏览器访问位置，或手动填写经纬度。", 2: "暂时无法确定位置，请检查系统定位服务，或手动填写经纬度。", 3: "定位请求超时，请重试或手动填写经纬度。" } as Record<number, string>)[error.code] ?? "无法获取当前位置，请手动填写经纬度。");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  };
+
+  return <div className="split-actions"><button type="button" className="ghost-button" onClick={locate} disabled={status === "loading"}>{status === "loading" ? "定位中…" : "使用浏览器当前位置"}</button>{message ? <small className={`location-permission-status ${status}`} role={status === "error" ? "alert" : "status"}>{message}</small> : null}</div>;
+}
+
+function WeatherRefreshControl({ weather, onChange }: { weather: WeatherConfig; onChange(value: JsonObject): void }) {
+  const [custom, setCustom] = useState(false);
+  const isPreset = [3600, 7200, 21600].includes(weather.refreshSeconds);
+  const update = (seconds: number) => onChange(toJsonObject({ ...weather, refreshSeconds: seconds, cacheTtlSeconds: Math.max(seconds, weather.cacheTtlSeconds) }));
+  return <>
+    <SelectInput label="天气数据采集频率" value={custom || !isPreset ? "custom" : String(weather.refreshSeconds)} options={[["7200", "每 2 小时（推荐）"], ["3600", "每 1 小时"], ["21600", "每 6 小时"], ["custom", "自定义"]]} onChange={(value) => { setCustom(value === "custom"); if (value !== "custom") update(Number(value)); }} />
+    <label>采集间隔（秒）<input type="number" min={300} max={86400} value={weather.refreshSeconds} onChange={(event) => { setCustom(true); update(ensureNumber(event.currentTarget.value, weather.refreshSeconds)); }} /></label>
+  </>;
 }

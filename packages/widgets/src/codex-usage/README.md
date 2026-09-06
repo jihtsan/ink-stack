@@ -118,3 +118,5 @@ type CodexRateLimitBucket = {
 - [官方 Codex App Server 文档](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt)：只读额度接口、窗口字段和多分组返回。
 - [组件开发约定](../../../../docs/widgets.md)
 - [网格布局](../../../../docs/grid-layout.md)
+
+PaperCraft 布局新增 2×2 紧凑卡片，保留 2×4 默认尺寸和两个真实额度窗口。浏览器空态与服务端共用纯渲染器。只展示上游提供的剩余比例和重置信息，不转换为参考图中的美元余额、RPM 或 Tokens 历史。

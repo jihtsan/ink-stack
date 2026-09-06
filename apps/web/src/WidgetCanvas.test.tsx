@@ -191,9 +191,9 @@ describe("widget editor presentation", () => {
     expect(html).toContain("放置 和风天气");
   });
 
-  it("only shows the Codex placeholder when no current preview is supplied", () => {
+  it("uses the shared Codex empty-state renderer when no current preview is supplied", () => {
     const config = { alias: "工作", connectionId: "local", connectionRevision: 1, quotaGroupId: "codex", lowBalanceThreshold: 20 };
-    expect(renderWidget("codex-usage", config)).toContain("生成预览以查看额度");
+    expect(renderWidget("codex-usage", config)).toContain("等待可用额度数据");
   });
 
   it("shows normalized weather test data in the selected card before a connection is saved", () => {

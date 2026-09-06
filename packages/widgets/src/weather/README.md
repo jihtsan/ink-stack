@@ -71,3 +71,15 @@ npm run lint
 fixtures 中 current/daily/hourly/air-current/location 为固定模拟供应商响应，states 覆盖正常、过期、超期、空数据、认证失败和超时回退。测试还覆盖三种扩展模式、恶意配置/Host、经纬度顺序、单位、认证 header、超时取消、秘密边界、缓存轮换、未来/倒退时间、长中文、两个尺寸、多实例与公共模块边界。测试不调用真实 API。
 
 并行合并保留双方 catalog.ts、registry.server.ts、render.ts、catalog.test.ts、scripts/generate-validators.mjs 和 package.json exports 新增条目。生成的 src/generated/config-validators.* 使用 `npm run generate -w @ink-stack/widgets` 重建，不手工拼接。
+
+## PaperCraft 综合看板
+
+新增 `forecastMode: "dashboard"`，2×2 和 4×2 均展示综合看板，保留原来的 daily/hourly/air-quality 模式。`showAirQuality`、`showHourly`、`showUv`、`showDaily` 独立控制 AQI/PM2.5、24 小时温度图、UV 和五日预报；缺失字段视为开启。关闭总开关 `showForecast` 后只取当前天气。每日、逐时、空气质量分别失败时不会清空成功模块。
+
+新建组件默认每两小时采集，新鲜期至少覆盖一个采集周期。旧配置仍采用原来的间隔和预报模式。1/2/6 小时预设属于服务器采集频率，不能代表 Kindle 唤醒频率或续航。
+
+`iconStyle` 支持 outline/dot/solid（默认 outline）；`dither` 在服务端对该天气组件区域执行 Floyd–Steinberg 16 级灰度误差扩散，不影响相邻组件。最终效果以 PNG 为准。未配置图标风格的旧综合看板使用线框；未配置抖动的旧实例不启用抖动。
+
+天气图标来自 Google Material Symbols，Apache-2.0；`icons.json` 保存未修改的 upstream SVG，点阵样式通过 glyph clip 应用网点。来源为 `https://github.com/google/material-design-icons` 中 `symbols/web/<name>/materialsymbolsoutlined/<name>_24px.svg` 与 `<name>_fill1_24px.svg`；包括 sunny、partly_cloudy_day、rainy、weather_snowy、cloud，下载于 2026-09-06。许可证见仓库 `apps/web/public/icons/LICENSE`。
+
+v1 综合看板请求 `hours=24`、`days=5`，每日 `uvIndexMax` 按 [QWeather 官方逐日接口](https://dev.qweather.com/en/docs/api/weather/weather-daily-forecast/) 读取；v7 用 24h/7d 接口并取前五天。按上游实际返回数量展示，不补造缺失时段。衣着参考根据当前温度换算为摄氏温度后给出简单建议（<10°C 厚外套、<20°C 轻薄外套、否则轻便衣物；雨天提示带伞），不是上游生活指数。暴雨触发设备刷新尚未接入。

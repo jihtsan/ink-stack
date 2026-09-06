@@ -22,7 +22,7 @@ export function escapeXml(value: unknown): string {
 export function cardFrame(rect: WidgetRenderRect, title?: string, scale = 1): string {
   const titleText = title ? `<text x="14" y="28" font-size="18" font-weight="700">${escapeXml(title)}</text>` : "";
   return `
-    <rect x="${scale}" y="${scale}" width="${Math.max(0, rect.width - scale * 2)}" height="${Math.max(0, rect.height - scale * 2)}" rx="${scaled(10, scale)}" fill="#ffffff" stroke="#b8b8b8" stroke-width="${scale}"/>
+    <rect x="${scale}" y="${scale}" width="${Math.max(0, rect.width - scale * 2)}" height="${Math.max(0, rect.height - scale * 2)}" rx="${scaled(12, scale)}" fill="#f3f3f3" stroke="#dddddd" stroke-width="${scale}"/>
     ${titleText}
   `;
 }

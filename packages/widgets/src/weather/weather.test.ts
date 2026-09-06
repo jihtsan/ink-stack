@@ -17,7 +17,8 @@ import airCurrent from "./fixtures/air-current.json" with { type: "json" };
 import location from "./fixtures/location.json" with { type: "json" };
 import states from "./fixtures/states.json" with { type: "json" };
 
-const config = { ...defaults, connectionId: "weather-home" } as WeatherConfig;
+// Pin the original configuration to exercise backwards compatibility.
+const config = { ...defaults, forecastMode: "daily", refreshSeconds: 900, cacheTtlSeconds: 1800, connectionId: "weather-home" } as WeatherConfig;
 const connection: QWeatherConnection = { id: config.connectionId, revision: 1, type: "qweather", apiHost: "h2a9cf3mhs.xy.qweatherapi.com", authMode: "jwt", secretRef: "secret-weather", authRevision: 1, identity: "weather-project" };
 const now = "2026-09-05T00:05:00Z";
 const snapshot = normalizeWeatherSnapshot(current, daily, { location: "北京", units: "m" })!;

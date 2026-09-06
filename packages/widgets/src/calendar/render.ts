@@ -6,7 +6,7 @@ export function renderCalendarWidget(input: WidgetRenderInput<CalendarConfig, Ca
   const { context, instance, data } = input;
   const { rect, now, timeZone } = context;
   const config = instance.config;
-  const scale = Math.min(renderScale(context.screen), rect.width / 320, rect.height / 210);
+  const scale = Math.min(renderScale(context.screen), rect.width / 270, rect.height / 270);
   const padding = 12 * scale;
   const width = rect.width - padding * 2;
   const font = 14 * scale;
@@ -26,12 +26,13 @@ export function renderCalendarWidget(input: WidgetRenderInput<CalendarConfig, Ca
   svg += text(heading, rect.width - padding, 25 * scale, font, width * 0.48, 'text-anchor="end"');
   let listTop = 40 * scale;
   // Short cards keep a legible month grid; larger combined cards add event rows below it.
-  const combinedList = config.layout === "month-list" && rect.height >= 330 * scale;
+  const combinedList = config.layout === "month-list" && rect.height >= 320 * scale;
   if (config.layout !== "list") {
     const top = 42 * scale;
     const weekdayHeight = config.showWeekdays ? 18 * scale : 0;
     const gridBottom = combinedList ? top + 190 * scale : footerTop - 7 * scale;
     const rowHeight = (gridBottom - top - weekdayHeight) / 6;
+    svg += `<rect x="${padding}" y="${top - 8 * scale}" width="${width}" height="${gridBottom - top + 12 * scale}" rx="${5 * scale}" fill="#e9e9e9"/>`;
     const cellWidth = width / 7;
     const first = `${month}-01`;
     const offset = (new Date(`${first}T00:00:00Z`).getUTCDay() - config.weekStartsOn + 7) % 7;
@@ -43,12 +44,12 @@ export function renderCalendarWidget(input: WidgetRenderInput<CalendarConfig, Ca
     const dayFont = Math.min(font, rowHeight * 0.55);
     for (let index = 0; index < 42; index++) {
       const day = addDays(first, index - offset);
-      if (!day.startsWith(month)) continue;
+
       const x = padding + (index % 7 + 0.5) * cellWidth;
       const y = top + weekdayHeight + (Math.floor(index / 7) + 0.5) * rowHeight;
-      if (day === today) svg += `<circle cx="${x}" cy="${y}" r="${dayFont * 0.85}" fill="#111111"/>`;
+      if (day === today) svg += `<rect x="${x - dayFont}" y="${y - dayFont}" width="${dayFont * 2}" height="${dayFont * 2}" rx="${3 * scale}" fill="#111111"/>`;
       svg += text(String(Number(day.slice(-2))), x, y + dayFont * 0.33, dayFont, cellWidth,
-        `text-anchor="middle" fill="${day === today ? "#ffffff" : "#111111"}"`);
+        `text-anchor="middle" fill="${day === today ? "#ffffff" : day.startsWith(month) ? "#111111" : "#999999"}"`);
       if (events.some((event) => { const dates = eventDates(event, timeZone); return dates.start <= day && dates.last >= day; })) {
         svg += `<rect x="${x - 4 * scale}" y="${y + rowHeight * 0.43}" width="${8 * scale}" height="${scale}" fill="#111111"/>`;
       }

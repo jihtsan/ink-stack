@@ -1,6 +1,6 @@
 import { computePixelRect } from "./grid";
 import { StudioIcon } from "./StudioIcon";
-import { renderTextWidget, renderDateWidget, renderTodoWidget, renderCalendarWidget, renderWeatherWidget, renderImageWidget } from "@ink-stack/widgets/render";
+import { renderTextWidget, renderDateWidget, renderTodoWidget, renderCalendarWidget, renderWeatherWidget, renderImageWidget, renderCodexUsageWidget } from "@ink-stack/widgets/render";
 import type { WeatherEnvelope } from "@ink-stack/widgets/weather/types";
 import type {
   CalendarConfig,
@@ -225,17 +225,9 @@ function WidgetPreview({ dashboard, widget, previewImageUrl, weatherPreview }: {
     case "todo":
       body = renderTodoWidget({ instance: { ...widget, config: widget.config as TodoConfig }, context });
       break;
-    case "codex-usage": {
-      const config = widget.config as CodexUsageConfig;
-      return (
-        <div className="widget-content codex-widget">
-          <div className="widget-heading"><StudioIcon name="terminal" /><strong>Codex 额度</strong></div>
-          <div className="codex-account"><span>{config.alias || "Codex 账号"}</span><small>{config.quotaGroupId}</small></div>
-          <div className="widget-empty"><StudioIcon name="visibility" /><strong>生成预览以查看额度</strong><small>从已配置的数据源读取<br />额度窗口与重置时间</small></div>
-          <div className="widget-footnote"><StudioIcon name="info" /><span>点击顶部「预览」更新画面</span></div>
-        </div>
-      );
-    }
+    case "codex-usage":
+      body = renderCodexUsageWidget({ instance: { ...widget, config: widget.config as CodexUsageConfig }, context });
+      break;
     case "calendar":
       body = renderCalendarWidget({ instance: { ...widget, config: widget.config as CalendarConfig }, context });
       break;

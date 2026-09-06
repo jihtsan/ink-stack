@@ -2,11 +2,26 @@
   "type": "weather",
   "version": "0.1.0",
   "configVersion": 1,
-  "displayName": "和风天气",
-  "description": "当前天气与可切换的每日、逐小时、空气质量扩展信息；连接及密钥由服务端管理。",
+  "displayName": "24H + 5 天天气看板",
+  "description": "当前天气、逐时温度、未来预报与 AQI；各模块可独立配置。",
   "category": "content",
   "connectionType": "qweather",
-  "supportedSizes": [{ "columns": 2, "rows": 2 }, { "columns": 4, "rows": 2 }],
-  "defaultSize": { "columns": 2, "rows": 2 },
-  "minimumPixelSize": { "width": 220, "height": 180 }
+  "supportedSizes": [
+    {
+      "columns": 2,
+      "rows": 2
+    },
+    {
+      "columns": 4,
+      "rows": 2
+    }
+  ],
+  "defaultSize": {
+    "columns": 2,
+    "rows": 2
+  },
+  "minimumPixelSize": {
+    "width": 220,
+    "height": 180
+  }
 }
