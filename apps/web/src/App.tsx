@@ -554,6 +554,7 @@ export default function App() {
   const [imageSources, setImageSources] = useState<ImageSourcesResponse>({ sources: [] });
   const [imageSourceDraft, setImageSourceDraft] = useState({ type: "album" as ImageSource["type"], name: "我的相册", root: "" });
   const [imageList, setImageList] = useState<ImageListResponse | null>(null);
+  const [imagePicking, setImagePicking] = useState(false);
   const [googleStatus, setGoogleStatus] = useState<GoogleStatusResponse>({ app: { configured: false }, connections: [] });
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const [googleAppDraft, setGoogleAppDraft] = useState({ clientId: "", clientSecret: "" });
@@ -1150,6 +1151,50 @@ export default function App() {
     }
   }, [imageSources.sources, loadImageList]);
 
+  const pickImage = useCallback(async (file: File) => {
+    if (!selectedWidget || selectedWidget.type !== "image") return;
+    const widgetId = selectedWidget.id;
+    const image = selectedWidget.config as ImageConfig;
+    setImagePicking(true);
+    try {
+      let source = imageSources.sources.find((item) => item.id === image.sourceId && item.type === "album");
+      source ??= imageSources.sources.find((item) => item.type === "album" && item.name === "我的相册");
+      if (!source) {
+        source = await api.createImageSource({ type: "album", name: "我的相册" });
+        setImageSources((current) => ({ sources: [...current.sources, source!] }));
+      }
+
+      try {
+        await api.uploadImage(source.id, file);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.message !== "image_already_exists") throw error;
+      }
+      const listed = await api.listImages(source.id, source.revision, image.recursive);
+      const picked = listed.images.find((item) => item.name === file.name);
+      if (!picked) throw new Error("图片上传成功但扫描不到该文件");
+      setImageList(listed);
+      mutateDashboard(
+        updateWidget(state.dashboard, widgetId, (widget) => ({
+          ...widget,
+          config: toJsonObject({
+            ...(widget.config as ImageConfig),
+            sourceType: source!.type,
+            sourceId: source!.id,
+            sourceRevision: source!.revision,
+            selection: "fixed",
+            fixedImageId: picked.id
+          })
+        })),
+        widgetId
+      );
+      dispatch({ type: "setNotice", notice: { kind: "success", message: `已指定图片：${picked.name}` } });
+    } catch (error) {
+      dispatch({ type: "setNotice", notice: { kind: "error", message: error instanceof Error ? error.message : "选择图片失败" } });
+    } finally {
+      setImagePicking(false);
+    }
+  }, [imageSources.sources, mutateDashboard, selectedWidget, state.dashboard]);
+
   const searchWeatherLocations = useCallback(async (config: WeatherConfig) => {
     const query = config.city.trim();
     if (!query) {
@@ -1669,7 +1714,7 @@ export default function App() {
           </> : <>
             <PanelHeader title="相关属性" subtitle={`${selectedDefinition.manifest.displayName} · ${selectedWidget.columnSpan} × ${selectedWidget.rowSpan}`} />
             <WidgetInspector widget={selectedWidget} definition={selectedDefinition} issue={selectedIssue?.message ?? null} onMove={moveSelected} onResize={resizeSelected} onDelete={deleteWidget} onDuplicate={duplicateWidget} />
-            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} weatherSources={weatherSources} weatherConnectionDraft={weatherConnectionDraft} onWeatherConnectionDraftChange={setWeatherConnectionDraft} onCreateWeatherConnection={createWeatherConnection} onRefreshWeatherConnections={refreshWeatherSources} weatherTest={weatherTest} weatherTesting={weatherTesting} onTestWeatherConnection={testWeatherConnection} weatherLocations={weatherLocations} weatherLocationsLoading={weatherLocationsLoading} onSearchWeatherLocations={searchWeatherLocations} imageSources={imageSources} imageSourceDraft={imageSourceDraft} onImageSourceDraftChange={setImageSourceDraft} onCreateImageSource={createImageSource} imageList={imageList} onLoadImageList={loadImageList} onUploadImage={uploadImage} googleStatus={googleStatus} googleCalendars={googleCalendars} onClearGoogleCalendars={() => setGoogleCalendars([])} googleAppDraft={googleAppDraft} onGoogleAppDraftChange={setGoogleAppDraft} onSaveGoogleApp={saveGoogleApp} onStartGoogleOAuth={startGoogleOAuth} onLoadGoogleCalendars={loadGoogleCalendars} onRefreshGoogleStatus={refreshGoogleStatus} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
+            <ConfigInspector widget={selectedWidget} config={selectedWidget.config} onChange={updateSelectedConfig} codexSources={codexSources} connectionName={connectionDraftName} onConnectionNameChange={setConnectionDraftName} onCreateConnection={createConnection} onRefreshConnections={refreshCodexSources} onTestConnection={testConnection} weatherSources={weatherSources} weatherConnectionDraft={weatherConnectionDraft} onWeatherConnectionDraftChange={setWeatherConnectionDraft} onCreateWeatherConnection={createWeatherConnection} onRefreshWeatherConnections={refreshWeatherSources} weatherTest={weatherTest} weatherTesting={weatherTesting} onTestWeatherConnection={testWeatherConnection} weatherLocations={weatherLocations} weatherLocationsLoading={weatherLocationsLoading} onSearchWeatherLocations={searchWeatherLocations} imageSources={imageSources} imageSourceDraft={imageSourceDraft} onImageSourceDraftChange={setImageSourceDraft} onCreateImageSource={createImageSource} imageList={imageList} onLoadImageList={loadImageList} onUploadImage={uploadImage} onPickImage={pickImage} imagePicking={imagePicking} googleStatus={googleStatus} googleCalendars={googleCalendars} onClearGoogleCalendars={() => setGoogleCalendars([])} googleAppDraft={googleAppDraft} onGoogleAppDraftChange={setGoogleAppDraft} onSaveGoogleApp={saveGoogleApp} onStartGoogleOAuth={startGoogleOAuth} onLoadGoogleCalendars={loadGoogleCalendars} onRefreshGoogleStatus={refreshGoogleStatus} onRefreshConnection={refreshConnection} connectionTest={connectionTest} />
           </>}
         </aside>
       </section>
@@ -1831,6 +1876,8 @@ function ConfigInspector({
   imageList,
   onLoadImageList,
   onUploadImage,
+  onPickImage,
+  imagePicking,
   googleStatus,
   googleCalendars,
   onClearGoogleCalendars,
@@ -1870,6 +1917,8 @@ function ConfigInspector({
   imageList: ImageListResponse | null;
   onLoadImageList: (source: ImageSource, recursive: boolean) => void;
   onUploadImage: (sourceId: string, file: File, recursive: boolean) => void;
+  onPickImage: (file: File) => void;
+  imagePicking: boolean;
   googleStatus: GoogleStatusResponse;
   googleCalendars: GoogleCalendarInfo[];
   onClearGoogleCalendars: () => void;
@@ -2085,9 +2134,15 @@ function ConfigInspector({
           </select>
         </label>
         <div className="split-actions">
+          <label className="file-button primary-button" aria-busy={imagePicking}>
+            <StudioIcon name="upload" />
+            {imagePicking ? "处理中…" : "选择图片并固定"}
+            <input type="file" accept="image/png,image/jpeg,image/webp" disabled={imagePicking} onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) onPickImage(file); event.currentTarget.value = ""; }} />
+          </label>
           <button type="button" className="ghost-button" onClick={() => selectedImageSource && onLoadImageList(selectedImageSource, image.recursive)} disabled={!selectedImageSource}>扫描图片</button>
           {selectedImageSource?.type === "album" ? <label className="file-button ghost-button">上传图片<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) onUploadImage(selectedImageSource.id, file, image.recursive); event.currentTarget.value = ""; }} /></label> : null}
         </div>
+        <p className="muted-copy">选择本地图片后会上传到平台相册，并自动设为当前组件的固定图片。</p>
         {imageList && imageList.source.id === image.sourceId ? <p className="muted-copy">扫描状态：{imageList.state} · {imageList.images.length} 张可用 · 跳过 {imageList.skipped} 张</p> : null}
         <SectionTitle title="资源管理" />
         <SelectInput label="新资源类型" value={imageSourceDraft.type} options={[["album", "平台相册"], ["directory", "登记目录"]]} onChange={(type) => onImageSourceDraftChange({ ...imageSourceDraft, type: type as ImageSource["type"] })} />
