@@ -69,7 +69,13 @@ export type WeatherConfig = JsonObject & {
   showHumidity: boolean;
   showWind: boolean;
   showForecast: boolean;
-  forecastMode?: "daily" | "hourly" | "air-quality";
+  forecastMode?: "daily" | "hourly" | "air-quality" | "dashboard";
+  iconStyle?: "outline" | "dot" | "solid";
+  dither?: boolean;
+  showAirQuality?: boolean;
+  showHourly?: boolean;
+  showUv?: boolean;
+  showDaily?: boolean;
   showUpdatedAt: boolean;
   refreshSeconds: number;
   cacheTtlSeconds: number;
@@ -90,6 +96,8 @@ export type ImageConfig = JsonObject & {
   grayscale: boolean;
   showTitle: boolean;
   showCaption: boolean;
+  photoFrame?: boolean;
+  caption?: string;
   showBorder: boolean;
   padding: number;
 };

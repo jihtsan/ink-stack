@@ -59,3 +59,5 @@ npm run lint
 ```
 
 测试 fixture 必须使用非空测试连接引用和固定时间。应用主程序默认使用受限 Google HTTP adapter；测试通过注入模拟 transport，不发起真实授权。部署时没有 OAuth 配置不会发起授权。
+
+PaperCraft 布局新增 2×2 尺寸；月历以浅灰底、相邻月份灰字及黑色圆角方块高亮今日。保留原 4×2、4×3、4×4 布局和 Google Calendar 状态；未授权时显示本地月历及未连接提示。

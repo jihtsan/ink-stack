@@ -1,5 +1,5 @@
 import type { WidgetRenderInput } from "../types.js";
-import { escapeXml, fitText, renderScale, scaled } from "../render-utils.js";
+import { cardFrame, escapeXml, fitText, renderScale, scaled } from "../render-utils.js";
 import { isSafeImageAsset, type ImageState, type ImageWidgetConfig, type ImageWidgetData } from "./types.js";
 
 const stateLabels: Record<ImageState, string> = {
@@ -14,19 +14,20 @@ export function renderImageWidget(input: WidgetRenderInput<ImageWidgetConfig, Im
   const data = input.data?.data;
   const scale = Math.min(renderScale(screen), rect.width / 160, rect.height / 120);
   const font = scaled(16, scale);
-  const inset = Math.max(scaled(config.padding, scale), 1);
+  const inset = Math.max(scaled(config.padding + (config.photoFrame ? 8 : 0), scale), 1);
   const titleHeight = config.showTitle && config.title ? scaled(32, scale) : 0;
   const stale = input.data?.status === "stale";
   const canShowImage = input.data && ["fresh", "stale"].includes(input.data.status) && isSafeImageAsset(data?.image);
   const image = canShowImage ? data!.image! : undefined;
   const showCaption = config.showCaption && image;
-  const footerHeight = stale || showCaption || (data?.skipped ?? 0) > 0 ? scaled(28, scale) : 0;
+  const footerHeight = stale || showCaption || (data?.skipped ?? 0) > 0 ? scaled(config.photoFrame ? 44 : 28, scale) : 0;
   // Wide cards move the caption alongside the image; taller cards reserve a footer.
-  const sideCaption = !!showCaption && input.instance.columnSpan === 4 && input.instance.rowSpan === 2;
+  const sideCaption = !config.photoFrame && !!showCaption && input.instance.columnSpan === 4 && input.instance.rowSpan === 2;
   const sidebar = sideCaption ? Math.round(rect.width * 0.25) : 0;
   const width = Math.max(1, rect.width - inset * 2 - sidebar);
   const height = Math.max(1, rect.height - inset * 2 - titleHeight - footerHeight);
-  let svg = `<rect width="${rect.width}" height="${rect.height}" fill="#ffffff"/>`;
+  let svg = config.photoFrame ? cardFrame(rect, undefined, scale) : `<rect width="${rect.width}" height="${rect.height}" fill="#ffffff"/>`;
+  if (config.photoFrame) svg += `<rect x="${inset - 5 * scale}" y="${inset - 5 * scale}" width="${rect.width - inset * 2 + 10 * scale}" height="${rect.height - inset * 2 + 10 * scale}" rx="${3 * scale}" fill="#ffffff" stroke="#d0d0d0"/>`;
   if (config.showTitle && config.title) svg += `<text x="${inset}" y="${inset + font}" font-size="${font}" font-weight="700">${escapeXml(fitText(config.title, rect.width - inset * 2, font))}</text>`;
   if (image) {
     // UTF-16 hex encoding is injective and keeps duplicate instances' filter IDs distinct.
@@ -35,9 +36,9 @@ export function renderImageWidget(input: WidgetRenderInput<ImageWidgetConfig, Im
     svg += `<svg x="${inset}" y="${inset + titleHeight}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" overflow="hidden"><image width="${width}" height="${height}" preserveAspectRatio="xMidYMid ${config.fit === "cover" ? "slice" : "meet"}" href="${image.pngDataUri}"${config.grayscale ? ` filter="url(#${filterId})"` : ""}/></svg>`;
     if (showCaption) {
       const captionWidth = sideCaption ? sidebar - inset : width;
-      const x = sideCaption ? inset + width + inset : inset;
+      const x = sideCaption ? inset + width + inset : config.photoFrame ? rect.width / 2 : inset;
       const y = sideCaption ? inset + titleHeight + font : rect.height - inset - scaled(5, scale);
-      svg += `<text x="${x}" y="${y}" font-size="${font}">${escapeXml(fitText(image.name, captionWidth, font))}</text>`;
+      svg += `<text x="${x}" y="${y}" font-size="${font}"${config.photoFrame ? ' text-anchor="middle" font-weight="600"' : ""}>${escapeXml(fitText(config.photoFrame && config.caption ? config.caption : image.name, captionWidth, font))}</text>`;
     }
   } else {
     const label = stateLabels[data?.state ?? "unconfigured"] ?? "图片不可用";

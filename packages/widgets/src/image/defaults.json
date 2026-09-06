@@ -8,10 +8,12 @@
   "fixedImageId": "",
   "rotationSeconds": 3600,
   "noRepeat": true,
-  "fit": "contain",
+  "fit": "cover",
   "grayscale": true,
-  "showTitle": true,
-  "showCaption": false,
+  "showTitle": false,
+  "showCaption": true,
   "showBorder": false,
-  "padding": 8
+  "padding": 8,
+  "photoFrame": true,
+  "caption": "MOMENTS"
 }

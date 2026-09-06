@@ -13,7 +13,8 @@ import bad from "./fixtures/bad-images.json" with { type: "json" };
 import inaccessible from "./fixtures/inaccessible.json" with { type: "json" };
 import stale from "./fixtures/stale.json" with { type: "json" };
 
-const config = defaults as ImageWidgetConfig;
+// Saved images without the new frame retain the original layout.
+const config = { ...defaults, photoFrame: false, showTitle: true, showCaption: false, fit: "contain" } as ImageWidgetConfig;
 const data = ready.data as WidgetDataEnvelope<ImageWidgetData>;
 const instance = { id: "图片-1", type: "image", configVersion: 1, column: 0, row: 0, columnSpan: 2, rowSpan: 2, config };
 const context = { now: "2026-09-05T00:00:00.000Z", timeZone: "Asia/Shanghai", screen: { width: 600, height: 800 }, rect: { x: 0, y: 0, width: 260, height: 240 } };

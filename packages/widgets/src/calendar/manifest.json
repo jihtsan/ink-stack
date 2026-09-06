@@ -3,10 +3,33 @@
   "version": "0.1.0",
   "configVersion": 1,
   "displayName": "日历与日程",
-  "description": "本地月历与 Google Calendar 日程；Google 授权接入待完成",
+  "description": "月历矩阵与 Google Calendar 日程；日期高亮和日程标记。",
   "category": "time",
-  "supportedSizes": [{ "columns": 4, "rows": 2 }, { "columns": 4, "rows": 3 }, { "columns": 4, "rows": 4 }],
-  "defaultSize": { "columns": 4, "rows": 3 },
-  "minimumPixelSize": { "width": 320, "height": 210 },
+  "supportedSizes": [
+    {
+      "columns": 2,
+      "rows": 2
+    },
+    {
+      "columns": 4,
+      "rows": 2
+    },
+    {
+      "columns": 4,
+      "rows": 3
+    },
+    {
+      "columns": 4,
+      "rows": 4
+    }
+  ],
+  "defaultSize": {
+    "columns": 2,
+    "rows": 2
+  },
+  "minimumPixelSize": {
+    "width": 220,
+    "height": 210
+  },
   "connectionType": "google-calendar-oauth"
 }

@@ -1,5 +1,5 @@
 {
-  "title": "天气",
+  "title": "天气看板",
   "locationMode": "city",
   "city": "北京",
   "latitude": 39.9,
@@ -13,9 +13,15 @@
   "showHumidity": true,
   "showWind": false,
   "showForecast": true,
-  "forecastMode": "daily",
+  "forecastMode": "dashboard",
   "showUpdatedAt": true,
-  "refreshSeconds": 900,
-  "cacheTtlSeconds": 1800,
-  "maxStaleSeconds": 7200
+  "refreshSeconds": 7200,
+  "cacheTtlSeconds": 7200,
+  "maxStaleSeconds": 7200,
+  "showAirQuality": true,
+  "showHourly": true,
+  "showUv": true,
+  "showDaily": true,
+  "iconStyle": "outline",
+  "dither": true
 }

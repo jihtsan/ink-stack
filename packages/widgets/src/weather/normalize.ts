@@ -104,7 +104,7 @@ function normalizeDailyForecast(value: unknown, units: "m" | "i", isV1: boolean)
   if (qweatherResponseError(body)) return forecast;
   const days = isV1 ? body.days : body.daily;
   if (!Array.isArray(days)) return forecast;
-  for (const raw of days.slice(0, 3)) {
+  for (const raw of days.slice(0, 5)) {
     const day = record(raw);
     const forecastStart = typeof day.forecastStartTime === "string" ? day.forecastStartTime : undefined;
     const date = isV1
@@ -118,7 +118,8 @@ function normalizeDailyForecast(value: unknown, units: "m" | "i", isV1: boolean)
     if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)
       || !Number.isFinite(Date.parse(date)) || minimum === undefined || maximum === undefined || minimum > maximum) continue;
     if (forecast.some((item) => item.date === date)) continue;
-    forecast.push({ date, minimum, maximum, condition: label(conditionValue) });
+    const uvIndex = number(isV1 ? day.uvIndexMax : day.uvIndex, 0, 15);
+    forecast.push({ date, minimum, maximum, condition: label(conditionValue), ...(uvIndex === undefined ? {} : { uvIndex }) });
   }
   forecast.sort((a, b) => a.date.localeCompare(b.date));
   return forecast;

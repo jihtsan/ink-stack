@@ -6,3 +6,4 @@ export { renderCalendarWidget } from "./calendar/render.js";
 export { renderImageWidget } from "./image/render.js";
 export type { ImageWidgetConfig, ImageWidgetData } from "./image/types.js";
 export { renderWeatherWidget } from "./weather/render.js";
+export { renderCodexUsageWidget } from "./codex-usage/render.js";

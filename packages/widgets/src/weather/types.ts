@@ -16,7 +16,13 @@ export interface WeatherConfig {
   showWind: boolean;
   showForecast: boolean;
   /** The secondary pane shown on wide weather cards. Missing means daily for legacy configs. */
-  forecastMode?: "daily" | "hourly" | "air-quality";
+  forecastMode?: "daily" | "hourly" | "air-quality" | "dashboard";
+  iconStyle?: "outline" | "dot" | "solid";
+  dither?: boolean;
+  showAirQuality?: boolean;
+  showHourly?: boolean;
+  showUv?: boolean;
+  showDaily?: boolean;
   showUpdatedAt: boolean;
   refreshSeconds: number;
   cacheTtlSeconds: number;
@@ -67,7 +73,7 @@ export interface WeatherSnapshot {
   forecastError?: WeatherError;
   hourlyError?: WeatherError;
   airQualityError?: WeatherError;
-  forecast: { date: string; minimum: number; maximum: number; condition: string }[];
+  forecast: { date: string; minimum: number; maximum: number; condition: string; uvIndex?: number }[];
   hourlyForecast: WeatherHourlyForecast[];
   airQuality?: WeatherAirQuality;
 }
